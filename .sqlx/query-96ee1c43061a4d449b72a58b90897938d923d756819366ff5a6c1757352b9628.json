@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO integrations (id, name, channel_type, config_json, status, created_at) VALUES (?, ?, ?, ?, 'active', datetime('now'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "96ee1c43061a4d449b72a58b90897938d923d756819366ff5a6c1757352b9628"
+}

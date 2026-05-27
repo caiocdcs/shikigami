@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE integrations SET name = ?, channel_type = ?, config_json = ?, status = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "e270149755ad750e182a38304743af55666c44c7d77dd083acddd6356d9570e0"
+}

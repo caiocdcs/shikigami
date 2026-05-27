@@ -1,0 +1,30 @@
+[package]
+name = "shikigami"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = [ "rt-multi-thread", "time", "macros", "test-util", "signal" ] }
+serde = "1"
+anyhow = "1"
+serde_json = "1"
+uuid = { version = "1", features = [ "v4", "serde" ] }
+axum = { version = "0.8", features = [ "json", "http2", "tokio", "query", "tracing" ] }
+sqlx = { version = "0.8", features = [ "runtime-tokio", "sqlite" ] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [ "env-filter" ] }
+dotenvy = "0.15"
+config = "0.15"
+secrecy = { version = "0.10", features = [ "serde" ] }
+chrono = { version = "0.4", features = [ "serde" ] }
+validator = { version = "0.20", features = [ "derive" ] }
+axum-validated-extractors = "0.2.0"
+thiserror = "2"
+tower-http = { version = "0.6", features = [ "trace", "request-id", "util", "propagate-header", "timeout", "limit", "compression-br" ] }
+tower = { version = "0.5", features = [ "util" ] }
+http-body-util = "0.1"
+http = "1"
+
+[dev-dependencies]
+http-body-util = "0.1"
+http = "1"
