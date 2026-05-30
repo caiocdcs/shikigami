@@ -4,6 +4,14 @@ use crate::core::domain::{
     monitor::{CheckInOutcome, MonitorError, MonitorId, NewMonitor},
 };
 
+pub struct CheckIn {
+    pub id: String,
+    pub monitor_id: String,
+    pub checked_in_at: chrono::DateTime<chrono::Utc>,
+    pub outcome: CheckInOutcome,
+    pub comments: Option<String>,
+}
+
 pub trait MonitorRepository: Send + Sync + 'static {
     fn get_monitors(&self) -> impl Future<Output = Result<Vec<Monitor>, MonitorError>> + Send;
     fn get_monitor(
@@ -36,6 +44,11 @@ pub trait MonitorRepository: Send + Sync + 'static {
         &self,
         monitor_id: MonitorId,
     ) -> impl Future<Output = Result<Vec<Integration>, MonitorError>> + Send;
+    fn get_check_ins(
+        &self,
+        monitor_id: MonitorId,
+        limit: i64,
+    ) -> impl Future<Output = Result<Vec<CheckIn>, MonitorError>> + Send;
     fn ping(
         &self,
         monitor_id: MonitorId,

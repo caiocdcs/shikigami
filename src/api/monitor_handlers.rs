@@ -8,8 +8,10 @@ use uuid::Uuid;
 
 use crate::{
     AppState,
-    api::dtos::monitor_dto::{
-        CreateMonitorDto, LinkIntegrationDto, MonitorResponse, UpdateMonitorDto,
+    api::dtos::{
+        check_in_dto::CheckInResponse,
+        integration_dto::IntegrationResponse,
+        monitor_dto::{CreateMonitorDto, LinkIntegrationDto, MonitorResponse, UpdateMonitorDto},
     },
     core::domain::{
         integration::IntegrationId,
@@ -35,7 +37,6 @@ pub async fn create_monitor(
             payload.grace_seconds,
         )
         .await?;
-
     Ok((StatusCode::CREATED, Json(monitor.into())))
 }
 
@@ -49,7 +50,6 @@ pub async fn get_monitor(
         .get_monitor(MonitorId::from_uuid(id))
         .await?
         .ok_or(AppError::NotFound)?;
-
     Ok(Json(monitor.into()))
 }
 
@@ -70,7 +70,6 @@ pub async fn delete_monitor(
         .monitor_service
         .delete_monitor(MonitorId::from_uuid(id))
         .await?;
-
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -82,15 +81,15 @@ pub async fn update_monitor(
 ) -> AppResult<StatusCode> {
     let schedule = match payload.schedule_type.as_str() {
         "cron" => {
-            let expr = payload.cron_expr.ok_or_else(|| {
-                AppError::Validation("cron_expr required for cron schedule".to_string())
-            })?;
+            let expr = payload
+                .cron_expr
+                .ok_or_else(|| AppError::Validation("cron_expr required".to_string()))?;
             ScheduleType::Cron { cron_expr: expr }
         }
         "interval" => {
-            let secs = payload.interval_seconds.ok_or_else(|| {
-                AppError::Validation("interval_seconds required for interval schedule".to_string())
-            })?;
+            let secs = payload
+                .interval_seconds
+                .ok_or_else(|| AppError::Validation("interval_seconds required".to_string()))?;
             ScheduleType::Interval {
                 interval_seconds: secs,
             }
@@ -102,15 +101,13 @@ pub async fn update_monitor(
         }
     };
     let status = MonitorStatus::try_from(payload.status.as_str())
-        .map_err(|_| AppError::Validation("invalid status value".to_string()))?;
+        .map_err(|_| AppError::Validation("invalid status".to_string()))?;
 
-    // Fetch existing monitor to preserve timestamps
     let existing = state
         .monitor_service
         .get_monitor(MonitorId::from_uuid(id))
         .await?
         .ok_or(AppError::NotFound)?;
-
     let monitor = Monitor {
         id: MonitorId::from_uuid(id),
         name: payload.name,
@@ -133,7 +130,7 @@ pub async fn link_integration(
     Path(monitor_id): Path<Uuid>,
     Json(payload): Json<LinkIntegrationDto>,
 ) -> AppResult<StatusCode> {
-    let integration_uuid: Uuid = payload
+    let iid: Uuid = payload
         .integration_id
         .parse()
         .map_err(|_| AppError::Validation("invalid integration_id".to_string()))?;
@@ -141,7 +138,7 @@ pub async fn link_integration(
         .monitor_service
         .link_integration(
             MonitorId::from_uuid(monitor_id),
-            IntegrationId::from_uuid(integration_uuid),
+            IntegrationId::from_uuid(iid),
         )
         .await?;
     Ok(StatusCode::NO_CONTENT)
@@ -160,6 +157,46 @@ pub async fn unlink_integration(
         )
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[axum::debug_handler]
+pub async fn get_monitor_integrations(
+    State(state): State<AppState>,
+    Path(monitor_id): Path<Uuid>,
+) -> AppResult<Json<Vec<IntegrationResponse>>> {
+    let integrations = state
+        .monitor_service
+        .get_monitor_integrations(MonitorId::from_uuid(monitor_id))
+        .await?;
+    Ok(Json(
+        integrations
+            .into_iter()
+            .map(IntegrationResponse::from)
+            .collect(),
+    ))
+}
+
+#[axum::debug_handler]
+pub async fn get_monitor_check_ins(
+    State(state): State<AppState>,
+    Path(monitor_id): Path<Uuid>,
+) -> AppResult<Json<Vec<CheckInResponse>>> {
+    let check_ins = state
+        .monitor_service
+        .get_check_ins(MonitorId::from_uuid(monitor_id), 50)
+        .await?;
+    Ok(Json(
+        check_ins
+            .into_iter()
+            .map(|c| CheckInResponse {
+                id: c.id,
+                monitor_id: c.monitor_id,
+                checked_in_at: c.checked_in_at.to_rfc3339(),
+                outcome: c.outcome.to_string(),
+                comments: c.comments,
+            })
+            .collect(),
+    ))
 }
 
 #[axum::debug_handler]

@@ -19,7 +19,9 @@ pub fn router(state: AppState) -> Router {
         )
         .route(
             "/integrations/{id}",
-            get(handlers::get_integration).delete(handlers::delete_integration),
+            get(handlers::get_integration)
+                .delete(handlers::delete_integration)
+                .put(handlers::update_integration),
         )
         .route(
             "/monitors",
@@ -32,8 +34,13 @@ pub fn router(state: AppState) -> Router {
                 .put(monitor_handlers::update_monitor),
         )
         .route(
+            "/monitors/{id}/check-ins",
+            get(monitor_handlers::get_monitor_check_ins),
+        )
+        .route(
             "/monitors/{monitor_id}/integrations",
-            post(monitor_handlers::link_integration),
+            post(monitor_handlers::link_integration)
+                .get(monitor_handlers::get_monitor_integrations),
         )
         .route(
             "/monitors/{monitor_id}/integrations/{integration_id}",

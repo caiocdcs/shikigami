@@ -121,17 +121,16 @@ impl<R: MonitorRepository> MonitorService<R> {
         self.repo.get_monitor_integrations(monitor_id).await
     }
 
+    pub async fn get_check_ins(
+        &self,
+        monitor_id: MonitorId,
+        limit: i64,
+    ) -> Result<Vec<crate::core::ports::monitor_repository::CheckIn>, MonitorError> {
+        self.repo.get_check_ins(monitor_id, limit).await
+    }
+
     pub async fn ping(&self, monitor_id: MonitorId) -> Result<(), MonitorError> {
-        let monitor = self
-            .repo
-            .get_monitor(monitor_id.clone())
-            .await?
-            .ok_or(MonitorError::NotFound(monitor_id.clone()))?;
-
-        let now = chrono::Utc::now();
-        let next_expected = monitor.schedule_type.next_occurrence_after(&now)?;
-
-        self.repo.ping(monitor_id, now, next_expected).await
+        self.check_in(monitor_id, CheckInOutcome::Success).await
     }
 
     pub async fn check_in(

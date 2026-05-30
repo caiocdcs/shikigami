@@ -11,6 +11,14 @@ pub struct CreateIntegrationDto {
     pub config: serde_json::Value,
 }
 
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateIntegrationDto {
+    #[validate(length(min = 1, max = 100))]
+    pub name: String,
+    pub channel: String,
+    pub config: serde_json::Value,
+}
+
 #[derive(Debug, Serialize)]
 pub struct IntegrationResponse {
     pub id: String,

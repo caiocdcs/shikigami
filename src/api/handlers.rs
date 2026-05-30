@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     AppState,
-    api::dtos::integration_dto::{CreateIntegrationDto, IntegrationResponse},
+    api::dtos::integration_dto::{CreateIntegrationDto, IntegrationResponse, UpdateIntegrationDto},
     core::domain::integration::IntegrationId,
     error::{AppError, AppResult},
 };
@@ -61,6 +61,45 @@ pub async fn delete_integration(
     state
         .integration_service
         .delete_integration(IntegrationId::from_uuid(id))
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[axum::debug_handler]
+pub async fn update_integration(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    ValidatedJson(payload): ValidatedJson<UpdateIntegrationDto>,
+) -> AppResult<StatusCode> {
+    let existing = state
+        .integration_service
+        .get_integration(IntegrationId::from_uuid(id))
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let channel =
+        crate::core::domain::integration::IntegrationChannel::try_from(payload.channel.as_str())
+            .map_err(|_| AppError::Validation("invalid channel".to_string()))?;
+
+    let config = crate::core::domain::integration::IntegrationConfig::parse(
+        &channel,
+        &serde_json::to_string(&payload.config).unwrap_or_default(),
+    )
+    .map_err(|_| AppError::Validation("invalid config".to_string()))?;
+
+    let integration = crate::core::domain::Integration::new(
+        existing.id,
+        payload.name,
+        channel,
+        config,
+        existing.status,
+        existing.created_at,
+    );
+
+    state
+        .integration_service
+        .update_integration(integration)
         .await?;
 
     Ok(StatusCode::NO_CONTENT)

@@ -6,7 +6,7 @@ use crate::core::{
         integration::{IntegrationChannel, IntegrationConfig, IntegrationId, IntegrationStatus},
         monitor::{MonitorId, MonitorStatus, NewMonitor, ScheduleType},
     },
-    ports::monitor_repository::MonitorRepository,
+    ports::monitor_repository::{CheckIn, MonitorRepository},
 };
 
 #[derive(FromRow)]
@@ -115,6 +115,15 @@ impl TryFrom<IntegrationRow> for Integration {
     }
 }
 
+
+#[derive(FromRow)]
+struct CheckInRow {
+    id: String,
+    monitor_id: String,
+    checked_in_at: String,
+    outcome: String,
+    comments: Option<String>,
+}
 #[derive(Clone)]
 pub struct SqliteMonitorRepository {
     pool: SqlitePool,
@@ -296,6 +305,38 @@ impl MonitorRepository for SqliteMonitorRepository {
         rows.into_iter().map(Integration::try_from).collect()
     }
 
+    async fn get_check_ins(
+        &self,
+        monitor_id: MonitorId,
+        limit: i64,
+    ) -> Result<Vec<CheckIn>, MonitorError> {
+        let monitor_id_str = monitor_id.as_uuid().to_string();
+        let rows = sqlx::query_as!(
+            CheckInRow,
+            r#"SELECT id as "id!", monitor_id as "monitor_id!", checked_in_at as "checked_in_at!", outcome as "outcome!", comments FROM check_ins WHERE monitor_id = ? ORDER BY checked_in_at DESC LIMIT ?"#,
+            monitor_id_str,
+            limit
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|row| {
+                let naive = chrono::NaiveDateTime::parse_from_str(
+                    &row.checked_in_at,
+                    "%Y-%m-%d %H:%M:%S",
+                )?;
+                Ok(CheckIn {
+                    id: row.id,
+                    monitor_id: row.monitor_id,
+                    checked_in_at: chrono::DateTime::from_naive_utc_and_offset(naive, chrono::Utc),
+                    outcome: CheckInOutcome::try_from(row.outcome.as_str())?,
+                    comments: row.comments,
+                })
+            })
+            .collect()
+    }
+
     async fn ping(
         &self,
         monitor_id: MonitorId,
@@ -346,9 +387,9 @@ impl MonitorRepository for SqliteMonitorRepository {
         .await
         .map_err(MonitorError::map_sqlx_error)?;
 
-        // Update monitor timestamps
+        // Update monitor timestamps and status
         sqlx::query!(
-            r#"UPDATE monitors SET last_pinged_at = ?, next_expected_at = ? WHERE id = ?"#,
+            r#"UPDATE monitors SET last_pinged_at = ?, next_expected_at = ?, status = 'active' WHERE id = ?"#,
             now_str,
             next_expected_str,
             monitor_id_str
