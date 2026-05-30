@@ -1,0 +1,92 @@
+use sqlx::{FromRow, SqlitePool};
+
+use crate::core::ports::notification_dispatcher::{OutboxEntry, OutboxRepository};
+
+#[derive(FromRow)]
+struct OutboxRow {
+    id: String,
+    monitor_id: String,
+    integration_id: String,
+    message: String,
+    retry_count: i32,
+}
+
+#[derive(Clone)]
+pub struct SqliteOutboxRepository {
+    pool: SqlitePool,
+}
+
+impl SqliteOutboxRepository {
+    pub fn new(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+}
+
+impl OutboxRepository for SqliteOutboxRepository {
+    async fn fetch_pending(&self, limit: i64) -> Result<Vec<OutboxEntry>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, OutboxRow>(
+            r#"SELECT id, monitor_id, integration_id, message, retry_count
+               FROM notification_outbox
+               WHERE status = 'pending'
+               ORDER BY created_at ASC
+               LIMIT ?"#,
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| OutboxEntry {
+                id: r.id,
+                monitor_id: r.monitor_id,
+                integration_id: r.integration_id,
+                message: r.message,
+                retry_count: r.retry_count,
+            })
+            .collect())
+    }
+
+    async fn claim_sending(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE notification_outbox SET status = 'sending' WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn mark_sent(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE notification_outbox SET status = 'sent' WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn mark_failed(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE notification_outbox SET status = 'failed' WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn retry_later(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE notification_outbox SET status = 'pending', retry_count = retry_count + 1 WHERE id = ?",
+        )
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn reset_stale_sending(&self) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE notification_outbox SET status = 'pending' WHERE status = 'sending'",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+}

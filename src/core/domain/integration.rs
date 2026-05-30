@@ -170,21 +170,21 @@ impl IntegrationConfig {
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
 pub struct NtfyConfig {
     #[validate(length(min = 1))]
-    url: String,
+    pub url: String,
     #[validate(length(min = 1))]
-    topic: String,
-    priority: u8,
+    pub topic: String,
+    pub priority: u8,
     #[validate(length(min = 1))]
-    message: String,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
 pub struct GotifyConfig {
     #[validate(length(min = 1))]
-    url: String,
+    pub url: String,
     #[validate(length(min = 1))]
-    token: String,
-    priority: u8,
+    pub token: String,
+    pub priority: u8,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
@@ -201,7 +201,7 @@ pub struct EmailConfig {
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
 pub struct SlackConfig {
     #[validate(url)]
-    webhook_url: String,
+    pub webhook_url: String,
 }
 
 #[non_exhaustive]

@@ -1,5 +1,6 @@
 use shikigami::{config::Config, create_app};
 use tokio::signal;
+use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -12,19 +13,22 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
+    let shutdown_token = CancellationToken::new();
+
     let app = create_app(config.clone()).await?;
 
     let addr = format!("0.0.0.0:{}", config.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     tracing::info!("listening on {}", listener.local_addr()?);
+
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal()) // defined in the Deployment chapter
+        .with_graceful_shutdown(shutdown_signal(shutdown_token))
         .await?;
 
     Ok(())
 }
 
-async fn shutdown_signal() {
+async fn shutdown_signal(shutdown_token: CancellationToken) {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
@@ -48,4 +52,5 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("shutdown signal received, draining connections");
+    shutdown_token.cancel();
 }

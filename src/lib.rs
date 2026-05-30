@@ -11,6 +11,7 @@ use axum::Router;
 use config::Config;
 use secrecy::ExposeSecret;
 use sqlx::{Pool, Sqlite, SqlitePool, sqlite::SqlitePoolOptions};
+use tokio_util::sync::CancellationToken;
 use tower_http::{
     compression::CompressionLayer,
     request_id::{MakeRequestUuid, SetRequestIdLayer},
@@ -18,9 +19,16 @@ use tower_http::{
 };
 
 use crate::{
-    core::integration_service::IntegrationService, core::monitor_service::MonitorService,
-    spi::integration_repository::SqliteIntegrationRepository,
-    spi::monitor_repository::SqliteMonitorRepository,
+    core::{
+        integration_service::IntegrationService,
+        monitor_service::MonitorService,
+        notification_service::{DispatcherMap, NotificationService},
+    },
+    spi::{
+        gotify_dispatcher::GotifyDispatcher, integration_repository::SqliteIntegrationRepository,
+        monitor_repository::SqliteMonitorRepository, ntfy_dispatcher::NtfyDispatcher,
+        outbox_repository::SqliteOutboxRepository, slack_dispatcher::SlackDispatcher,
+    },
 };
 
 #[derive(Clone)]
@@ -64,12 +72,40 @@ pub async fn create_app(config: Config) -> anyhow::Result<Router> {
     create_app_with_pool(pool, config).await
 }
 
+pub fn build_notification_service(
+    pool: Pool<Sqlite>,
+) -> NotificationService<SqliteIntegrationRepository, SqliteOutboxRepository> {
+    let integration_repo = SqliteIntegrationRepository::new(pool.clone());
+    let outbox_repo = SqliteOutboxRepository::new(pool);
+    let http_client = reqwest::Client::new();
+    let dispatchers = DispatcherMap::new(
+        NtfyDispatcher::new(http_client.clone()),
+        GotifyDispatcher::new(http_client.clone()),
+        SlackDispatcher::new(http_client.clone()),
+    );
+    NotificationService::new(
+        outbox_repo,
+        integration_repo,
+        dispatchers,
+        Duration::from_secs(30),
+    )
+}
+
 pub async fn create_app_with_pool(pool: Pool<Sqlite>, config: Config) -> anyhow::Result<Router> {
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .context("failed to run database migrations")?;
-    let state = AppState::new(config, pool);
+    let state = AppState::new(config, pool.clone());
+
+    // Build and spawn the notification worker
+    let notification_service = build_notification_service(pool);
+    let shutdown_token = CancellationToken::new();
+    let worker_token = shutdown_token.child_token();
+    tokio::spawn(async move {
+        notification_service.run(worker_token).await;
+    });
+
     let router = api::routes::router(state);
 
     let app = router

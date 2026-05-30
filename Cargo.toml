@@ -25,6 +25,8 @@ tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 http = "1"
 croner = "3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 
 [dev-dependencies]
 http-body-util = "0.1"
