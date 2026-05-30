@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE monitors SET last_pinged_at = ?, next_expected_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "cb3d64dc6065232290fa8e1ed2ab13d84fc4a01b277ece9e0224077d4e0aef0f"
+}

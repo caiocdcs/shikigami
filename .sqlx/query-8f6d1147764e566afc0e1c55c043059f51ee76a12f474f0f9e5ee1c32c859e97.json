@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT integration_id FROM monitor_integrations WHERE monitor_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "integration_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8f6d1147764e566afc0e1c55c043059f51ee76a12f474f0f9e5ee1c32c859e97"
+}

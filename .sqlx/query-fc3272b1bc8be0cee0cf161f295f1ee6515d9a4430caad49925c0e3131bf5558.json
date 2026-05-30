@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "fc3272b1bc8be0cee0cf161f295f1ee6515d9a4430caad49925c0e3131bf5558"
+}
