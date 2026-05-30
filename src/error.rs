@@ -2,7 +2,7 @@ use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
-use crate::core::domain::IntegrationError;
+use crate::core::domain::{IntegrationError, MonitorError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -42,7 +42,19 @@ impl From<IntegrationError> for AppError {
         match err {
             IntegrationError::InvalidConfig(field) => AppError::Validation(field),
             IntegrationError::NotFound(_) => AppError::NotFound,
+            IntegrationError::Conflict(msg) => AppError::Conflict(msg),
             IntegrationError::Database(msg) => AppError::Internal(msg),
+        }
+    }
+}
+
+impl From<MonitorError> for AppError {
+    fn from(err: MonitorError) -> Self {
+        match err {
+            MonitorError::InvalidConfig(field) => AppError::Validation(field),
+            MonitorError::NotFound(_) => AppError::NotFound,
+            MonitorError::Conflict(msg) => AppError::Conflict(msg),
+            MonitorError::Database(msg) => AppError::Internal(msg),
         }
     }
 }

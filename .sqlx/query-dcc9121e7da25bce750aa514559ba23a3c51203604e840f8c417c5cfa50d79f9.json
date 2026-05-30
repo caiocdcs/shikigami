@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM monitor_integrations WHERE monitor_id = ? AND integration_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "dcc9121e7da25bce750aa514559ba23a3c51203604e840f8c417c5cfa50d79f9"
+}

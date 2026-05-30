@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO monitor_integrations (monitor_id, integration_id) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "3a84dc593d3c6a57a39cd0bfe59b3a2f8e32cfca25017984898e07078f466cea"
+}

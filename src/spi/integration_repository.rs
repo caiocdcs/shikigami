@@ -79,7 +79,7 @@ impl IntegrationRepository for SqliteIntegrationRepository {
         )
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| IntegrationError::Database(e.to_string()))?;
+        .map_err(IntegrationError::map_sqlx_error)?;
 
         row.map(Integration::try_from).transpose()
     }
@@ -102,7 +102,7 @@ impl IntegrationRepository for SqliteIntegrationRepository {
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| IntegrationError::Database(e.to_string()))?;
+        .map_err(IntegrationError::map_sqlx_error)?;
 
         Ok(Integration::new(
             id,
@@ -123,7 +123,7 @@ impl IntegrationRepository for SqliteIntegrationRepository {
         sqlx::query!(r#"DELETE FROM integrations WHERE id = ?"#, id_str)
             .execute(&self.pool)
             .await
-            .map_err(|e| IntegrationError::Database(e.to_string()))?;
+            .map_err(IntegrationError::map_sqlx_error)?;
 
         Ok(())
     }
@@ -144,7 +144,7 @@ impl IntegrationRepository for SqliteIntegrationRepository {
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| IntegrationError::Database(e.to_string()))?;
+        .map_err(IntegrationError::map_sqlx_error)?;
 
         Ok(())
     }

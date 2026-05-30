@@ -18,8 +18,9 @@ use tower_http::{
 };
 
 use crate::{
-    core::integration_service::IntegrationService,
+    core::integration_service::IntegrationService, core::monitor_service::MonitorService,
     spi::integration_repository::SqliteIntegrationRepository,
+    spi::monitor_repository::SqliteMonitorRepository,
 };
 
 #[derive(Clone)]
@@ -27,16 +28,20 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub pg_pool: Pool<Sqlite>,
     pub integration_service: IntegrationService<SqliteIntegrationRepository>,
+    pub monitor_service: MonitorService<SqliteMonitorRepository>,
 }
 
 impl AppState {
     pub fn new(config: Config, pg_pool: Pool<Sqlite>) -> Self {
         let integration_repository = SqliteIntegrationRepository::new(pg_pool.clone());
         let integration_service = IntegrationService::new(integration_repository);
+        let monitor_repository = SqliteMonitorRepository::new(pg_pool.clone());
+        let monitor_service = MonitorService::new(monitor_repository);
         Self {
             config: Arc::new(config),
             pg_pool,
             integration_service,
+            monitor_service,
         }
     }
 }

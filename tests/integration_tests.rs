@@ -348,3 +348,384 @@ async fn create_slack_integration_returns_201() {
     assert_eq!(body["name"], "homelab-slack");
     assert_eq!(body["channel"], "slack");
 }
+
+// --- Monitor tests ---
+
+#[tokio::test]
+async fn create_interval_monitor_returns_201() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "nightly-backup",
+                        "description": "Home lab backup job",
+                        "slug": "nightly-backup",
+                        "schedule_type": "interval",
+                        "interval_seconds": 86400,
+                        "grace_seconds": 3600
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = response_json(response).await;
+    assert_eq!(body["name"], "nightly-backup");
+    assert_eq!(body["status"], "active");
+    assert_eq!(body["schedule_type"], "interval");
+}
+
+#[tokio::test]
+async fn create_cron_monitor_returns_201() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "cron-job",
+                        "slug": "cron-job",
+                        "schedule_type": "cron",
+                        "cron_expr": "0 2 * * *",
+                        "grace_seconds": 300
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = response_json(response).await;
+    assert_eq!(body["schedule_type"], "cron");
+    assert_eq!(body["cron_expr"], "0 2 * * *");
+}
+
+#[tokio::test]
+async fn get_monitor_returns_200() {
+    let app = test_app().await;
+
+    let create_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "test-monitor",
+                        "slug": "test-monitor",
+                        "schedule_type": "interval",
+                        "interval_seconds": 3600,
+                        "grace_seconds": 60
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let create_body = response_json(create_response).await;
+    let id = create_body["id"].as_str().unwrap();
+
+    let get_response = app
+        .oneshot(
+            Request::builder()
+                .uri(&format!("/monitors/{id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(get_response.status(), StatusCode::OK);
+    let body = response_json(get_response).await;
+    assert_eq!(body["id"], id);
+}
+
+#[tokio::test]
+async fn delete_monitor_returns_204() {
+    let app = test_app().await;
+
+    let create_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "to-delete",
+                        "slug": "to-delete",
+                        "schedule_type": "interval",
+                        "interval_seconds": 60,
+                        "grace_seconds": 10
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let create_body = response_json(create_response).await;
+    let id = create_body["id"].as_str().unwrap();
+
+    let delete_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(&format!("/monitors/{id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(delete_response.status(), StatusCode::NO_CONTENT);
+
+    let get_response = app
+        .oneshot(
+            Request::builder()
+                .uri(&format!("/monitors/{id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(get_response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn create_monitor_invalid_schedule_returns_400() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "bad-schedule",
+                        "slug": "bad-schedule",
+                        "schedule_type": "cron",
+                        "grace_seconds": 60
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn link_integration_to_monitor_returns_200() {
+    let app = test_app().await;
+
+    // Create integration
+    let int_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/integrations")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "homelab-ntfy",
+                        "channel": "ntfy",
+                        "config": {
+                            "url": "https://ntfy.sh",
+                            "topic": "alerts",
+                            "priority": 4,
+                            "message": "monitor down"
+                        }
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let int_body = response_json(int_response).await;
+    let int_id = int_body["id"].as_str().unwrap();
+
+    // Create monitor
+    let mon_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "nightly-backup",
+                        "slug": "nightly-backup",
+                        "schedule_type": "interval",
+                        "interval_seconds": 86400,
+                        "grace_seconds": 3600
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mon_body = response_json(mon_response).await;
+    let mon_id = mon_body["id"].as_str().unwrap();
+
+    // Link
+    let link_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/monitors/{mon_id}/integrations"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "integration_id": int_id
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(link_response.status(), StatusCode::NO_CONTENT);
+
+    // Unlink
+    let unlink_response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(&format!("/monitors/{mon_id}/integrations/{int_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(unlink_response.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn duplicate_slug_returns_409() {
+    let app = test_app().await;
+
+    let body = serde_json::to_string(&serde_json::json!({
+        "name": "first",
+        "slug": "same-slug",
+        "schedule_type": "interval",
+        "interval_seconds": 60,
+        "grace_seconds": 10
+    }))
+    .unwrap();
+
+    let first = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    let second = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn link_nonexistent_integration_returns_400() {
+    let app = test_app().await;
+
+    // Create monitor
+    let mon_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "test",
+                        "slug": "fk-test",
+                        "schedule_type": "interval",
+                        "interval_seconds": 60,
+                        "grace_seconds": 10
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mon_body = response_json(mon_response).await;
+    let mon_id = mon_body["id"].as_str().unwrap();
+
+    // Link with nonexistent integration
+    let link_response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/monitors/{mon_id}/integrations"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "integration_id": "00000000-0000-0000-0000-000000000000"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(link_response.status(), StatusCode::BAD_REQUEST);
+}

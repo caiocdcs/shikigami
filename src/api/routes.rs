@@ -2,11 +2,12 @@ use axum::{
     Router,
     extract::State,
     http::StatusCode,
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 
 use crate::AppState;
 use crate::api::handlers;
+use crate::api::monitor_handlers;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -19,6 +20,24 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/integrations/{id}",
             get(handlers::get_integration).delete(handlers::delete_integration),
+        )
+        .route(
+            "/monitors",
+            post(monitor_handlers::create_monitor).get(monitor_handlers::get_monitors),
+        )
+        .route(
+            "/monitors/{id}",
+            get(monitor_handlers::get_monitor)
+                .delete(monitor_handlers::delete_monitor)
+                .put(monitor_handlers::update_monitor),
+        )
+        .route(
+            "/monitors/{monitor_id}/integrations",
+            post(monitor_handlers::link_integration),
+        )
+        .route(
+            "/monitors/{monitor_id}/integrations/{integration_id}",
+            delete(monitor_handlers::unlink_integration),
         )
         .with_state(state)
 }

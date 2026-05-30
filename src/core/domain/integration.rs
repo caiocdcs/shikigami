@@ -60,6 +60,7 @@ impl Integration {
 pub enum IntegrationError {
     InvalidConfig(String),
     NotFound(IntegrationId),
+    Conflict(String),
     Database(String),
 }
 
@@ -70,14 +71,30 @@ impl Display for IntegrationError {
         match self {
             IntegrationError::InvalidConfig(field) => write!(f, "Invalid config: {}", field),
             IntegrationError::NotFound(id) => write!(f, "Integration not found: {}", id.as_uuid()),
+            IntegrationError::Conflict(msg) => write!(f, "Conflict: {}", msg),
             IntegrationError::Database(msg) => write!(f, "Database error: {}", msg),
+        }
+    }
+}
+
+impl IntegrationError {
+    pub fn map_sqlx_error(e: sqlx::Error) -> Self {
+        match &e {
+            sqlx::Error::Database(db_err) => match db_err.code().as_deref() {
+                Some("2067") => IntegrationError::Conflict("duplicate entry".to_string()),
+                Some("787") => {
+                    IntegrationError::InvalidConfig("referenced record not found".to_string())
+                }
+                _ => IntegrationError::Database(e.to_string()),
+            },
+            _ => IntegrationError::Database(e.to_string()),
         }
     }
 }
 
 impl From<sqlx::Error> for IntegrationError {
     fn from(error: sqlx::Error) -> Self {
-        IntegrationError::Database(error.to_string())
+        Self::map_sqlx_error(error)
     }
 }
 

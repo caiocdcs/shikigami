@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT i.id as \"id!\", i.name as \"name!\", i.channel_type as \"channel_type!\", i.config_json as \"config_json!\", i.status as \"status!\", i.created_at as \"created_at!\" FROM integrations i JOIN monitor_integrations mi ON i.id = mi.integration_id WHERE mi.monitor_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "channel_type!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "config_json!",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "status!",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "329fe105062bf9076ea694108ec52d2e3220f3d4fc9d6381d9a013b1429fdddd"
+}

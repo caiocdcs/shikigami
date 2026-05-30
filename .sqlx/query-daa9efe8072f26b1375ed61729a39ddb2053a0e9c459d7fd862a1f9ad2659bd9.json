@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!\", name as \"name!\", description, slug as \"slug!\", status as \"status!\", schedule_type as \"schedule_type!\", cron_expr, interval_seconds, grace_seconds as \"grace_seconds!\", last_pinged_at, next_expected_at, created_at as \"created_at!\" FROM monitors WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "slug!",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "status!",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "schedule_type!",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "cron_expr",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "interval_seconds",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "grace_seconds!",
+        "ordinal": 8,
+        "type_info": "Integer"
+      },
+      {
+        "name": "last_pinged_at",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "next_expected_at",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 11,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "daa9efe8072f26b1375ed61729a39ddb2053a0e9c459d7fd862a1f9ad2659bd9"
+}
