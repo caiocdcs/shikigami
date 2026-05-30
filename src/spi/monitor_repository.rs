@@ -2,7 +2,7 @@ use sqlx::{FromRow, SqlitePool};
 
 use crate::core::{
     domain::{
-        Integration, Monitor, MonitorError,
+        CheckInOutcome, Integration, Monitor, MonitorError,
         integration::{IntegrationChannel, IntegrationConfig, IntegrationId, IntegrationStatus},
         monitor::{MonitorId, MonitorStatus, NewMonitor, ScheduleType},
     },
@@ -294,5 +294,94 @@ impl MonitorRepository for SqliteMonitorRepository {
         .await?;
 
         rows.into_iter().map(Integration::try_from).collect()
+    }
+
+    async fn ping(
+        &self,
+        monitor_id: MonitorId,
+        timestamp: chrono::DateTime<chrono::Utc>,
+        next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<(), MonitorError> {
+        let monitor_id_str = monitor_id.as_uuid().to_string();
+        let now_str = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+        let next_expected_str =
+            next_expected_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string());
+
+        sqlx::query!(
+            r#"UPDATE monitors SET last_pinged_at = ?, next_expected_at = ?, status = 'active' WHERE id = ?"#,
+            now_str,
+            next_expected_str,
+            monitor_id_str
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(MonitorError::map_sqlx_error)?;
+
+        Ok(())
+    }
+
+    async fn check_in(
+        &self,
+        monitor_id: MonitorId,
+        outcome: CheckInOutcome,
+        timestamp: chrono::DateTime<chrono::Utc>,
+        next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<(), MonitorError> {
+        let monitor_id_str = monitor_id.as_uuid().to_string();
+        let now_str = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+        let next_expected_str =
+            next_expected_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string());
+        let outcome_str = outcome.to_string();
+
+        // Insert check_in record
+        let check_in_id = uuid::Uuid::new_v4().to_string();
+        sqlx::query!(
+            r#"INSERT INTO check_ins (id, monitor_id, checked_in_at, outcome, comments) VALUES (?, ?, ?, ?, NULL)"#,
+            check_in_id,
+            monitor_id_str,
+            now_str,
+            outcome_str
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(MonitorError::map_sqlx_error)?;
+
+        // Update monitor timestamps
+        sqlx::query!(
+            r#"UPDATE monitors SET last_pinged_at = ?, next_expected_at = ? WHERE id = ?"#,
+            now_str,
+            next_expected_str,
+            monitor_id_str
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(MonitorError::map_sqlx_error)?;
+
+        // On failure, write to notification_outbox for each linked integration
+        if matches!(outcome, CheckInOutcome::Failure) {
+            let integration_ids: Vec<String> = sqlx::query_scalar!(
+                r#"SELECT integration_id FROM monitor_integrations WHERE monitor_id = ?"#,
+                monitor_id_str
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
+            for int_id in integration_ids {
+                let outbox_id = uuid::Uuid::new_v4().to_string();
+                let message = format!("Monitor {} reported failure", monitor_id_str);
+                sqlx::query!(
+                    r#"INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'))"#,
+                    outbox_id,
+                    monitor_id_str,
+                    int_id,
+                    message
+                )
+                .execute(&self.pool)
+                .await
+                .map_err(MonitorError::map_sqlx_error)?;
+            }
+        }
+
+        Ok(())
     }
 }

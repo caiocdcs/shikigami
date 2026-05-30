@@ -21,9 +21,10 @@ validator = { version = "0.20", features = [ "derive" ] }
 axum-validated-extractors = "0.2.0"
 thiserror = "2"
 tower-http = { version = "0.6", features = [ "trace", "request-id", "util", "propagate-header", "timeout", "limit", "compression-br" ] }
-tower = { version = "0.5", features = [ "util" ] }
+tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 http = "1"
+croner = "3"
 
 [dev-dependencies]
 http-body-util = "0.1"

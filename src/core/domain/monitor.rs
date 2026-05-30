@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -105,6 +106,36 @@ impl ScheduleType {
             }
         }
     }
+
+    /// Compute the next expected occurrence after `from`.
+    ///
+    /// For interval schedules this is simply `from + interval_seconds`.
+    /// For cron schedules this uses the cron expression parser.
+    pub fn next_occurrence_after(
+        &self,
+        from: &chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>, MonitorError> {
+        match self {
+            ScheduleType::Interval { interval_seconds } => {
+                Ok(Some(*from + chrono::Duration::seconds(*interval_seconds)))
+            }
+            ScheduleType::Cron { cron_expr } => {
+                let cron = croner::Cron::from_str(cron_expr).map_err(|e| {
+                    MonitorError::InvalidConfig(format!(
+                        "invalid cron expression '{}': {}",
+                        cron_expr, e
+                    ))
+                })?;
+                let next = cron.find_next_occurrence(from, false).map_err(|e| {
+                    MonitorError::InvalidConfig(format!(
+                        "cron evaluation error for '{}': {}",
+                        cron_expr, e
+                    ))
+                })?;
+                Ok(Some(next))
+            }
+        }
+    }
 }
 
 impl TryFrom<&str> for ScheduleType {
@@ -137,6 +168,35 @@ pub enum MonitorStatus {
     Active,
     Paused,
     Missed,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum CheckInOutcome {
+    Success,
+    Failure,
+}
+
+impl Display for CheckInOutcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CheckInOutcome::Success => write!(f, "success"),
+            CheckInOutcome::Failure => write!(f, "failure"),
+        }
+    }
+}
+
+impl TryFrom<&str> for CheckInOutcome {
+    type Error = MonitorError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "success" => Ok(CheckInOutcome::Success),
+            "failure" => Ok(CheckInOutcome::Failure),
+            _ => Err(MonitorError::InvalidConfig(
+                "outcome must be 'success' or 'failure'".to_string(),
+            )),
+        }
+    }
 }
 
 impl TryFrom<&str> for MonitorStatus {

@@ -39,6 +39,15 @@ pub fn router(state: AppState) -> Router {
             "/monitors/{monitor_id}/integrations/{integration_id}",
             delete(monitor_handlers::unlink_integration),
         )
+        .route("/ping/{monitor_id}", post(monitor_handlers::ping_monitor))
+        .route(
+            "/success/{monitor_id}",
+            post(monitor_handlers::success_check_in),
+        )
+        .route(
+            "/failure/{monitor_id}",
+            post(monitor_handlers::failure_check_in),
+        )
         .with_state(state)
 }
 

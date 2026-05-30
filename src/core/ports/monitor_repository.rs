@@ -1,7 +1,7 @@
 use crate::core::domain::{
     Integration, Monitor,
     integration::IntegrationId,
-    monitor::{MonitorError, MonitorId, NewMonitor},
+    monitor::{CheckInOutcome, MonitorError, MonitorId, NewMonitor},
 };
 
 pub trait MonitorRepository: Send + Sync + 'static {
@@ -36,4 +36,17 @@ pub trait MonitorRepository: Send + Sync + 'static {
         &self,
         monitor_id: MonitorId,
     ) -> impl Future<Output = Result<Vec<Integration>, MonitorError>> + Send;
+    fn ping(
+        &self,
+        monitor_id: MonitorId,
+        timestamp: chrono::DateTime<chrono::Utc>,
+        next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> impl Future<Output = Result<(), MonitorError>> + Send;
+    fn check_in(
+        &self,
+        monitor_id: MonitorId,
+        outcome: CheckInOutcome,
+        timestamp: chrono::DateTime<chrono::Utc>,
+        next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> impl Future<Output = Result<(), MonitorError>> + Send;
 }

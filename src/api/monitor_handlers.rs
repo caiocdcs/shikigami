@@ -13,7 +13,7 @@ use crate::{
     },
     core::domain::{
         integration::IntegrationId,
-        monitor::{Monitor, MonitorId, MonitorStatus, ScheduleType},
+        monitor::{CheckInOutcome, Monitor, MonitorId, MonitorStatus, ScheduleType},
     },
     error::{AppError, AppResult},
 };
@@ -158,6 +158,42 @@ pub async fn unlink_integration(
             MonitorId::from_uuid(monitor_id),
             IntegrationId::from_uuid(integration_id),
         )
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[axum::debug_handler]
+pub async fn ping_monitor(
+    State(state): State<AppState>,
+    Path(monitor_id): Path<Uuid>,
+) -> AppResult<StatusCode> {
+    state
+        .monitor_service
+        .ping(MonitorId::from_uuid(monitor_id))
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[axum::debug_handler]
+pub async fn success_check_in(
+    State(state): State<AppState>,
+    Path(monitor_id): Path<Uuid>,
+) -> AppResult<StatusCode> {
+    state
+        .monitor_service
+        .check_in(MonitorId::from_uuid(monitor_id), CheckInOutcome::Success)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[axum::debug_handler]
+pub async fn failure_check_in(
+    State(state): State<AppState>,
+    Path(monitor_id): Path<Uuid>,
+) -> AppResult<StatusCode> {
+    state
+        .monitor_service
+        .check_in(MonitorId::from_uuid(monitor_id), CheckInOutcome::Failure)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

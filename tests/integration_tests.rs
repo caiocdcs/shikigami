@@ -6,13 +6,19 @@ use sqlx::SqlitePool;
 use tower::ServiceExt;
 
 async fn test_app() -> axum::Router {
+    let (app, _pool) = test_app_with_pool().await;
+    app
+}
+
+async fn test_app_with_pool() -> (axum::Router, SqlitePool) {
     let pool = SqlitePool::connect(":memory:")
         .await
         .expect("failed to create test pool");
     let config = Config::for_test("sqlite::memory:");
-    create_app_with_pool(pool, config)
+    let app = create_app_with_pool(pool.clone(), config)
         .await
-        .expect("failed to create test app")
+        .expect("failed to create test app");
+    (app, pool)
 }
 
 async fn response_json(response: axum::http::Response<Body>) -> serde_json::Value {
@@ -728,4 +734,315 @@ async fn link_nonexistent_integration_returns_400() {
         .unwrap();
 
     assert_eq!(link_response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn ping_updates_timestamps() {
+    let app = test_app().await;
+
+    let mon_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "interval-ping",
+                        "slug": "interval-ping",
+                        "schedule_type": "interval",
+                        "interval_seconds": 3600,
+                        "grace_seconds": 600
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mon_body = response_json(mon_response).await;
+    let mon_id = mon_body["id"].as_str().unwrap();
+
+    let ping_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/ping/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(ping_response.status(), StatusCode::NO_CONTENT);
+
+    // Verify timestamps were updated
+    let get_response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(&format!("/monitors/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = response_json(get_response).await;
+    assert!(body["last_pinged_at"].is_string());
+    assert!(body["next_expected_at"].is_string());
+}
+
+#[tokio::test]
+async fn ping_nonexistent_monitor_returns_404() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/ping/00000000-0000-0000-0000-000000000000")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn success_creates_check_in() {
+    let app = test_app().await;
+
+    let mon_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "success-check",
+                        "slug": "success-check",
+                        "schedule_type": "interval",
+                        "interval_seconds": 60,
+                        "grace_seconds": 10
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mon_body = response_json(mon_response).await;
+    let mon_id = mon_body["id"].as_str().unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/success/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn failure_creates_check_in() {
+    let (app, pool) = test_app_with_pool().await;
+
+    let int_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/integrations")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "failure-ntfy",
+                        "channel": "ntfy",
+                        "config": {
+                            "url": "https://ntfy.sh",
+                            "topic": "alerts",
+                            "priority": 4,
+                            "message": "monitor down"
+                        }
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let int_body = response_json(int_response).await;
+    let int_id = int_body["id"].as_str().unwrap();
+
+    let mon_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "failure-check",
+                        "slug": "failure-check",
+                        "schedule_type": "interval",
+                        "interval_seconds": 60,
+                        "grace_seconds": 10
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mon_body = response_json(mon_response).await;
+    let mon_id = mon_body["id"].as_str().unwrap();
+
+    // Link integration to monitor
+    let _link_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/monitors/{mon_id}/integrations"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "integration_id": int_id
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/failure/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // Verify notification_outbox has an entry
+    let outbox_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM notification_outbox WHERE monitor_id = ?")
+            .bind(mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or(0);
+    assert_eq!(
+        outbox_count, 1,
+        "notification_outbox should have 1 entry on failure"
+    );
+}
+
+#[tokio::test]
+async fn success_nonexistent_monitor_returns_404() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/success/00000000-0000-0000-0000-000000000000")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn failure_nonexistent_monitor_returns_404() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/failure/00000000-0000-0000-0000-000000000000")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn ping_with_cron_updates_next_expected_at() {
+    let app = test_app().await;
+
+    let mon_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "cron-ping",
+                        "slug": "cron-ping",
+                        "schedule_type": "cron",
+                        "cron_expr": "0 0 * * *",
+                        "grace_seconds": 600
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mon_body = response_json(mon_response).await;
+    let mon_id = mon_body["id"].as_str().unwrap();
+
+    let ping_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/ping/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(ping_response.status(), StatusCode::NO_CONTENT);
+
+    let get_response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(&format!("/monitors/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = response_json(get_response).await;
+    assert!(body["last_pinged_at"].is_string());
+    assert!(body["next_expected_at"].is_string());
 }

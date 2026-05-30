@@ -4,7 +4,7 @@ use crate::core::{
     domain::{
         Integration,
         integration::IntegrationId,
-        monitor::{Monitor, MonitorError, MonitorId, NewMonitor, ScheduleType},
+        monitor::{CheckInOutcome, Monitor, MonitorError, MonitorId, NewMonitor, ScheduleType},
     },
     ports::monitor_repository::MonitorRepository,
 };
@@ -119,5 +119,37 @@ impl<R: MonitorRepository> MonitorService<R> {
         monitor_id: MonitorId,
     ) -> Result<Vec<Integration>, MonitorError> {
         self.repo.get_monitor_integrations(monitor_id).await
+    }
+
+    pub async fn ping(&self, monitor_id: MonitorId) -> Result<(), MonitorError> {
+        let monitor = self
+            .repo
+            .get_monitor(monitor_id.clone())
+            .await?
+            .ok_or(MonitorError::NotFound(monitor_id.clone()))?;
+
+        let now = chrono::Utc::now();
+        let next_expected = monitor.schedule_type.next_occurrence_after(&now)?;
+
+        self.repo.ping(monitor_id, now, next_expected).await
+    }
+
+    pub async fn check_in(
+        &self,
+        monitor_id: MonitorId,
+        outcome: CheckInOutcome,
+    ) -> Result<(), MonitorError> {
+        let monitor = self
+            .repo
+            .get_monitor(monitor_id.clone())
+            .await?
+            .ok_or(MonitorError::NotFound(monitor_id.clone()))?;
+
+        let now = chrono::Utc::now();
+        let next_expected = monitor.schedule_type.next_occurrence_after(&now)?;
+
+        self.repo
+            .check_in(monitor_id, outcome, now, next_expected)
+            .await
     }
 }
