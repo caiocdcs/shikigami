@@ -1,8 +1,8 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::core::domain::dispatch::DispatchError;
-use crate::core::domain::integration::IntegrationConfig;
+use crate::core::domain::DispatchError;
+use crate::core::domain::IntegrationConfig;
 
 #[derive(Debug, Clone)]
 pub struct OutboxEntry {

@@ -3,11 +3,8 @@ use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 use crate::core::{
-    domain::{DispatchError, integration::IntegrationConfig},
-    ports::{
-        integration_repository::IntegrationRepository,
-        notification_dispatcher::{NotificationDispatcher, OutboxRepository},
-    },
+    domain::{DispatchError, IntegrationConfig, IntegrationId},
+    ports::{IntegrationRepository, NotificationDispatcher, OutboxRepository},
 };
 
 pub struct DispatcherMap {
@@ -119,7 +116,7 @@ where
             }
 
             let integration_id = match entry.integration_id.parse::<uuid::Uuid>() {
-                Ok(u) => crate::core::domain::integration::IntegrationId::from_uuid(u),
+                Ok(u) => IntegrationId::from_uuid(u),
                 Err(_) => {
                     tracing::error!(entry_id = %entry.id, "invalid integration_id in outbox");
                     let _ = self.outbox_repo.mark_failed(&entry.id).await;

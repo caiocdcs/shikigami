@@ -2,11 +2,10 @@ use validator::Validate;
 
 use crate::core::{
     domain::{
-        Integration,
-        integration::IntegrationId,
-        monitor::{CheckInOutcome, Monitor, MonitorError, MonitorId, NewMonitor, ScheduleType},
+        CheckInOutcome, Integration, IntegrationId, Monitor, MonitorError, MonitorId, NewMonitor,
+        ScheduleType,
     },
-    ports::monitor_repository::MonitorRepository,
+    ports::{CheckIn, MonitorRepository},
 };
 
 #[derive(Debug, Clone)]
@@ -125,7 +124,7 @@ impl<R: MonitorRepository> MonitorService<R> {
         &self,
         monitor_id: MonitorId,
         limit: i64,
-    ) -> Result<Vec<crate::core::ports::monitor_repository::CheckIn>, MonitorError> {
+    ) -> Result<Vec<CheckIn>, MonitorError> {
         self.repo.get_check_ins(monitor_id, limit).await
     }
 

@@ -8,8 +8,8 @@ use uuid::Uuid;
 
 use crate::{
     AppState,
-    api::dtos::integration_dto::{CreateIntegrationDto, IntegrationResponse, UpdateIntegrationDto},
-    core::domain::integration::IntegrationId,
+    api::dtos::{CreateIntegrationDto, IntegrationResponse, UpdateIntegrationDto},
+    core::domain::{IntegrationId, IntegrationConfig, IntegrationChannel, Integration},
     error::{AppError, AppResult},
 };
 
@@ -79,16 +79,16 @@ pub async fn update_integration(
         .ok_or(AppError::NotFound)?;
 
     let channel =
-        crate::core::domain::integration::IntegrationChannel::try_from(payload.channel.as_str())
+        IntegrationChannel::try_from(payload.channel.as_str())
             .map_err(|_| AppError::Validation("invalid channel".to_string()))?;
 
-    let config = crate::core::domain::integration::IntegrationConfig::parse(
+    let config = IntegrationConfig::parse(
         &channel,
         &serde_json::to_string(&payload.config).unwrap_or_default(),
     )
     .map_err(|_| AppError::Validation("invalid config".to_string()))?;
 
-    let integration = crate::core::domain::Integration::new(
+    let integration = Integration::new(
         existing.id,
         payload.name,
         channel,

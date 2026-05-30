@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use crate::core::domain::Monitor;
-use crate::core::domain::monitor::ScheduleType;
+use crate::core::domain::ScheduleType;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateMonitorDto {
