@@ -1,12 +1,16 @@
 #!/bin/sh
 set -eu
 
-REPO="${REPO:-caiocesaralves/shikigami}"
+REPO="${REPO:-caiocdcs/shikigami}"
 BIN="${BIN:-/usr/local/bin}"
 
 case "$(uname -s)" in
   Linux)  OS=linux   ;;
-  Darwin) OS=darwin  ;;
+  Darwin)
+    echo "macOS users: build from source with 'cargo build --release'"
+    echo "or use 'nix build github:caiocdcs/shikigami'"
+    exit 1
+    ;;
   *)      echo "Unsupported OS: $(uname -s)"; exit 1 ;;
 esac
 
