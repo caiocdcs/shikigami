@@ -59,9 +59,11 @@ jobs:
           merge-multiple: true
 
       - name: Release
-        uses: softprops/action-gh-release@c95fe1489396bdad09f212c5d1f36c53c3c47f15 # v2.2.1
-        with:
-          files: |
-            *.tar.gz
-            *.tar.gz.sha256
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ github.ref_name }} *.tar.gz *.tar.gz.sha256 \
+            --repo ${{ github.repository }} \
+            --title ${{ github.ref_name }} \
+            --generate-notes \
+            --verify-tag
