@@ -2,8 +2,8 @@ use validator::Validate;
 
 use crate::core::{
     domain::{
-        CheckInOutcome, Integration, IntegrationId, Monitor, MonitorError, MonitorId, NewMonitor,
-        ScheduleType,
+        CheckInOutcome, Integration, IntegrationId, Monitor, MonitorError, MonitorId,
+        MonitorStatus, NewMonitor, ScheduleType,
     },
     ports::{CheckIn, MonitorRepository},
 };
@@ -149,8 +149,14 @@ impl<R: MonitorRepository> MonitorService<R> {
         let now = chrono::Utc::now();
         let next_expected = monitor.schedule_type.next_occurrence_after(&now)?;
 
+        // Business rule: failure marks monitor as missed; success/ping marks active
+        let new_status = match outcome {
+            CheckInOutcome::Success => MonitorStatus::Active,
+            CheckInOutcome::Failure => MonitorStatus::Missed,
+        };
+
         self.repo
-            .check_in(monitor_id, outcome, now, next_expected)
+            .check_in(monitor_id, outcome, now, next_expected, new_status)
             .await
     }
 }

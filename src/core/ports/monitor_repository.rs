@@ -1,7 +1,7 @@
 use crate::core::domain::{
     Integration, Monitor,
     integration::IntegrationId,
-    monitor::{CheckInOutcome, MonitorError, MonitorId, NewMonitor},
+    monitor::{CheckInOutcome, MonitorError, MonitorId, MonitorStatus, NewMonitor},
 };
 
 pub struct CheckIn {
@@ -64,5 +64,6 @@ pub trait MonitorRepository: Send + Sync + 'static {
         outcome: CheckInOutcome,
         timestamp: chrono::DateTime<chrono::Utc>,
         next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
+        new_status: MonitorStatus,
     ) -> impl Future<Output = Result<(), MonitorError>> + Send;
 }

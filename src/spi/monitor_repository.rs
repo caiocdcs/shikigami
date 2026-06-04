@@ -115,7 +115,6 @@ impl TryFrom<IntegrationRow> for Integration {
     }
 }
 
-
 #[derive(FromRow)]
 struct CheckInRow {
     id: String,
@@ -322,10 +321,8 @@ impl MonitorRepository for SqliteMonitorRepository {
 
         rows.into_iter()
             .map(|row| {
-                let naive = chrono::NaiveDateTime::parse_from_str(
-                    &row.checked_in_at,
-                    "%Y-%m-%d %H:%M:%S",
-                )?;
+                let naive =
+                    chrono::NaiveDateTime::parse_from_str(&row.checked_in_at, "%Y-%m-%d %H:%M:%S")?;
                 Ok(CheckIn {
                     id: row.id,
                     monitor_id: row.monitor_id,
@@ -385,12 +382,14 @@ impl MonitorRepository for SqliteMonitorRepository {
         outcome: CheckInOutcome,
         timestamp: chrono::DateTime<chrono::Utc>,
         next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
+        new_status: MonitorStatus,
     ) -> Result<(), MonitorError> {
         let monitor_id_str = monitor_id.as_uuid().to_string();
         let now_str = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
         let next_expected_str =
             next_expected_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string());
         let outcome_str = outcome.to_string();
+        let status_str = new_status.to_string();
 
         // Insert check_in record
         let check_in_id = uuid::Uuid::new_v4().to_string();
@@ -405,11 +404,12 @@ impl MonitorRepository for SqliteMonitorRepository {
         .await
         .map_err(MonitorError::map_sqlx_error)?;
 
-        // Update monitor timestamps and status
+        // Update monitor timestamps and status (status decided by service)
         sqlx::query!(
-            r#"UPDATE monitors SET last_pinged_at = ?, next_expected_at = ?, status = 'active' WHERE id = ?"#,
+            r#"UPDATE monitors SET last_pinged_at = ?, next_expected_at = ?, status = ? WHERE id = ?"#,
             now_str,
             next_expected_str,
+            status_str,
             monitor_id_str
         )
         .execute(&self.pool)
