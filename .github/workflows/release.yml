@@ -22,21 +22,22 @@ jobs:
             runner: ubuntu-24.04-arm
             artifact: shikigami-aarch64-linux
 
+    env:
+      CARGO_TERM_COLOR: always
+      SQLX_OFFLINE: true
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: cachix/install-nix-action@08dcb3a5e62fa31e2da3d490afc4176ef55ecd72 # v30
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: dtolnay/rust-toolchain@stable
 
-      - run: nix build
+      - run: cargo build --release
 
       - name: Package binary + checksum
         run: |
-          cp result/bin/shikigami shikigami
-          tar czf ${{ matrix.artifact }}.tar.gz shikigami
+          strip target/release/shikigami
+          tar czf ${{ matrix.artifact }}.tar.gz -C target/release shikigami
           sha256sum ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
-          rm shikigami
 
       - uses: actions/upload-artifact@v4
         with:
