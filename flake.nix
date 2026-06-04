@@ -39,6 +39,19 @@
             echo "shikigami dev shell"
           '';
         };
+
+        packages.default = pkgs.stdenv.mkDerivation {
+          name = "shikigami";
+          src = ./.;
+          nativeBuildInputs = [ toolchain ];
+          buildPhase = ''
+            cargo build --release
+          '';
+          installPhase = ''
+            install -Dm755 target/release/shikigami -t $out/bin
+          '';
+          SQLX_OFFLINE = "true";
+        };
       }
     );
 }

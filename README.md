@@ -3,6 +3,28 @@
 Self-hosted heartbeat and cron monitor built in Rust.
 Single binary. SQLite-backed. Notifications via ntfy, gotify, slack.
 
+## Install
+
+One-line install (Linux x86_64/aarch64, macOS x86_64/Apple Silicon):
+
+```sh
+curl -sSfL https://github.com/caiocesaralves/shikigami/releases/latest/download/install.sh | sh
+```
+
+Or with Nix:
+
+```sh
+nix build github:caiocesaralves/shikigami
+./result/bin/shikigami
+```
+
+Or build from source:
+
+```sh
+cargo build --release
+./target/release/shikigami
+```
+
 ## Purpose
 
 Inspired by [healthchecks.io](https://healthchecks.io). Dead man's switch:
@@ -132,9 +154,9 @@ Environment variables (or `.env`, `__` as separator):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3000` | Listen port |
-| `DATABASE_URL` | required | SQLite connection string |
+| `DATABASE_URL` | required | SQLite connection string (e.g. `sqlite:shikigami.db?mode=rwc`) |
 | `LOG_LEVEL` | `info` | `tracing` filter (e.g. `info,sqlx=warn`) |
+| `PORT` | `3000` | Listen port |
 
 Example `.env`:
 
@@ -144,24 +166,13 @@ DATABASE_URL=sqlite:shikigami.db?mode=rwc
 LOG_LEVEL=info
 ```
 
-## Build and run
+## Run
 
-With Nix:
-
-```
-nix develop
-cargo build --release
-DATABASE_URL=sqlite:shikigami.db?mode=rwc ./target/release/shikigami
+```sh
+DATABASE_URL=sqlite:shikigami.db?mode=rwc shikigami
 ```
 
-Without Nix:
-
-```
-cargo build --release
-DATABASE_URL=sqlite:shikigami.db?mode=rwc ./target/release/shikigami
-```
-
-The binary is self-contained. Migrations run automatically on startup.
+Migrations run automatically on first start. The binary is self-contained.
 
 ## Development
 
