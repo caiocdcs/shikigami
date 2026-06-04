@@ -3,16 +3,18 @@ use std::time::Duration;
 use shikigami::{
     core::{
         domain::integration::{IntegrationChannel, IntegrationConfig, NewIntegration, NtfyConfig},
+        monitor_checker::MonitorChecker,
+        monitor_service::MonitorService,
         notification_service::{DispatcherMap, NotificationService},
         ports::{
-            integration_repository::IntegrationRepository,
+            MonitorRepository, integration_repository::IntegrationRepository,
             notification_dispatcher::OutboxRepository,
         },
     },
     spi::{
         gotify_dispatcher::GotifyDispatcher, integration_repository::SqliteIntegrationRepository,
-        ntfy_dispatcher::NtfyDispatcher, outbox_repository::SqliteOutboxRepository,
-        slack_dispatcher::SlackDispatcher,
+        monitor_repository::SqliteMonitorRepository, ntfy_dispatcher::NtfyDispatcher,
+        outbox_repository::SqliteOutboxRepository, slack_dispatcher::SlackDispatcher,
     },
 };
 use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
@@ -39,41 +41,33 @@ async fn pool_with_migrations() -> SqlitePool {
     pool
 }
 
+// ---- Outbox Tests ----
+
 #[tokio::test]
 async fn outbox_state_pending_to_sent() {
     let pool = pool_with_migrations().await;
     let repo = SqliteOutboxRepository::new(pool.clone());
-
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'pending', datetime('now'))",
-    )
-    .bind(&entry_id)
-    .execute(&pool)
-    .await
-    .expect("insert failed");
-
-    let entries = repo.fetch_pending(10).await.expect("fetch failed");
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'pending', datetime('now'))")
+        .bind(&entry_id).execute(&pool).await.expect("insert");
+    let entries = repo.fetch_pending(10).await.unwrap();
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].retry_count, 0);
-
-    repo.claim_sending(&entry_id).await.expect("claim failed");
+    repo.claim_sending(&entry_id).await.unwrap();
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
         .fetch_one(&pool)
         .await
-        .expect("query failed");
+        .unwrap();
     assert_eq!(status, "sending");
-
-    repo.mark_sent(&entry_id).await.expect("mark_sent failed");
+    repo.mark_sent(&entry_id).await.unwrap();
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
         .fetch_one(&pool)
         .await
-        .expect("query failed");
+        .unwrap();
     assert_eq!(status, "sent");
-
-    let entries = repo.fetch_pending(10).await.expect("fetch failed");
+    let entries = repo.fetch_pending(10).await.unwrap();
     assert_eq!(entries.len(), 0);
 }
 
@@ -81,26 +75,16 @@ async fn outbox_state_pending_to_sent() {
 async fn outbox_state_pending_to_failed() {
     let pool = pool_with_migrations().await;
     let repo = SqliteOutboxRepository::new(pool.clone());
-
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'pending', datetime('now'))",
-    )
-    .bind(&entry_id)
-    .execute(&pool)
-    .await
-    .expect("insert failed");
-
-    repo.claim_sending(&entry_id).await.expect("claim failed");
-    repo.mark_failed(&entry_id)
-        .await
-        .expect("mark_failed failed");
-
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'pending', datetime('now'))")
+        .bind(&entry_id).execute(&pool).await.unwrap();
+    repo.claim_sending(&entry_id).await.unwrap();
+    repo.mark_failed(&entry_id).await.unwrap();
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
         .fetch_one(&pool)
         .await
-        .expect("query failed");
+        .unwrap();
     assert_eq!(status, "failed");
 }
 
@@ -108,33 +92,22 @@ async fn outbox_state_pending_to_failed() {
 async fn outbox_state_transient_retry_increments_count() {
     let pool = pool_with_migrations().await;
     let repo = SqliteOutboxRepository::new(pool.clone());
-
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'pending', datetime('now'))",
-    )
-    .bind(&entry_id)
-    .execute(&pool)
-    .await
-    .expect("insert failed");
-
-    repo.claim_sending(&entry_id).await.expect("claim failed");
-    repo.retry_later(&entry_id)
-        .await
-        .expect("retry_later failed");
-
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'pending', datetime('now'))")
+        .bind(&entry_id).execute(&pool).await.unwrap();
+    repo.claim_sending(&entry_id).await.unwrap();
+    repo.retry_later(&entry_id).await.unwrap();
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
         .fetch_one(&pool)
         .await
-        .expect("query failed");
+        .unwrap();
     assert_eq!(status, "pending");
-
     let retry: i32 = sqlx::query_scalar("SELECT retry_count FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
         .fetch_one(&pool)
         .await
-        .expect("query failed");
+        .unwrap();
     assert_eq!(retry, 1);
 }
 
@@ -142,24 +115,16 @@ async fn outbox_state_transient_retry_increments_count() {
 async fn outbox_resets_stale_sending_on_startup() {
     let pool = pool_with_migrations().await;
     let repo = SqliteOutboxRepository::new(pool.clone());
-
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'sending', datetime('now'))",
-    )
-    .bind(&entry_id)
-    .execute(&pool)
-    .await
-    .expect("insert failed");
-
-    let count = repo.reset_stale_sending().await.expect("reset failed");
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'sending', datetime('now'))")
+        .bind(&entry_id).execute(&pool).await.unwrap();
+    let count = repo.reset_stale_sending().await.unwrap();
     assert_eq!(count, 1);
-
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
         .fetch_one(&pool)
         .await
-        .expect("query failed");
+        .unwrap();
     assert_eq!(status, "pending");
 }
 
@@ -167,16 +132,9 @@ async fn outbox_resets_stale_sending_on_startup() {
 async fn notification_service_handles_missing_integration() {
     let pool = pool_with_migrations().await;
     let int_repo = SqliteIntegrationRepository::new(pool.clone());
-
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', '00000000-0000-0000-0000-000000000000', 'test', 0, 'pending', datetime('now'))",
-    )
-    .bind(&entry_id)
-    .execute(&pool)
-    .await
-    .expect("insert failed");
-
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', '00000000-0000-0000-0000-000000000000', 'test', 0, 'pending', datetime('now'))")
+        .bind(&entry_id).execute(&pool).await.unwrap();
     let client = reqwest::Client::new();
     let dispatchers = DispatcherMap::new(
         NtfyDispatcher::new(client.clone()),
@@ -186,12 +144,11 @@ async fn notification_service_handles_missing_integration() {
     let outbox_repo = SqliteOutboxRepository::new(pool.clone());
     let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll());
     service.run_once().await;
-
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
         .fetch_one(&pool)
         .await
-        .expect("query failed");
+        .unwrap();
     assert_eq!(
         status, "failed",
         "missing integration should mark as failed"
@@ -202,36 +159,27 @@ async fn notification_service_handles_missing_integration() {
 async fn notification_service_transient_retries() {
     let pool = pool_with_migrations().await;
     let int_repo = SqliteIntegrationRepository::new(pool.clone());
-
     let integration = int_repo
         .new_integration(NewIntegration {
-            name: "test".to_string(),
+            name: "test".into(),
             channel: IntegrationChannel::Ntfy,
             config: IntegrationConfig::Ntfy(NtfyConfig {
-                url: "https://ntfy.sh".to_string(),
-                topic: "test".to_string(),
+                url: "https://ntfy.sh".into(),
+                topic: "test".into(),
                 priority: 3,
-                message: "alert".to_string(),
+                message: "alert".into(),
             }),
         })
         .await
-        .expect("create integration");
+        .unwrap();
     let int_id = integration.id.as_uuid().to_string();
-
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', ?, 'alert', 0, 'pending', datetime('now'))",
-    )
-    .bind(&entry_id)
-    .bind(&int_id)
-    .execute(&pool)
-    .await
-    .expect("insert failed");
-
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', ?, 'alert', 0, 'pending', datetime('now'))")
+        .bind(&entry_id).bind(&int_id).execute(&pool).await.unwrap();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(50))
         .build()
-        .expect("client");
+        .unwrap();
     let dispatchers = DispatcherMap::new(
         NtfyDispatcher::new(client.clone()),
         GotifyDispatcher::new(client.clone()),
@@ -240,19 +188,17 @@ async fn notification_service_transient_retries() {
     let outbox_repo = SqliteOutboxRepository::new(pool.clone());
     let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll());
     service.run_once().await;
-
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
         .fetch_one(&pool)
         .await
-        .expect("query failed");
+        .unwrap();
     assert_eq!(status, "pending", "transient error should retry");
-
     let retry: i32 = sqlx::query_scalar("SELECT retry_count FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
         .fetch_one(&pool)
         .await
-        .expect("query failed");
+        .unwrap();
     assert_eq!(retry, 1, "retry_count should increment");
 }
 
@@ -268,18 +214,96 @@ async fn notification_worker_responds_to_cancellation() {
         SlackDispatcher::new(client),
     );
     let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll());
-
     let token = CancellationToken::new();
     let child = token.child_token();
-
     let handle = tokio::spawn(async move {
         service.run(child).await;
     });
-
     token.cancel();
-
     tokio::time::timeout(Duration::from_secs(5), handle)
         .await
-        .expect("worker did not shut down in time")
-        .expect("worker panicked");
+        .unwrap()
+        .unwrap();
+}
+
+// ---- Monitor Checker Tests ----
+
+#[tokio::test]
+async fn find_missed_monitors_returns_expired() {
+    let pool = pool_with_migrations().await;
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let now = chrono::Utc::now();
+    let past = now - chrono::Duration::seconds(60);
+    let mon_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, 'test', 'test', 'active', 'interval', 60, 0, ?, ?, datetime('now'))")
+        .bind(&mon_id).bind(past.format("%Y-%m-%d %H:%M:%S").to_string()).bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .execute(&pool).await.unwrap();
+    let missed = repo.find_missed_monitors().await.unwrap();
+    assert_eq!(missed.len(), 1);
+    assert_eq!(missed[0].as_uuid().to_string(), mon_id);
+}
+
+#[tokio::test]
+async fn find_missed_monitors_skips_paused() {
+    let pool = pool_with_migrations().await;
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let now = chrono::Utc::now();
+    let past = now - chrono::Duration::seconds(60);
+    let mon_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, 'test', 'test', 'paused', 'interval', 60, 0, ?, ?, datetime('now'))")
+        .bind(&mon_id).bind(past.format("%Y-%m-%d %H:%M:%S").to_string()).bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .execute(&pool).await.unwrap();
+    let missed = repo.find_missed_monitors().await.unwrap();
+    assert_eq!(missed.len(), 0);
+}
+
+#[tokio::test]
+async fn find_missed_monitors_skips_null_next_expected() {
+    let pool = pool_with_migrations().await;
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let mon_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, 'test', 'test', 'active', 'interval', 60, 0, NULL, NULL, datetime('now'))")
+        .bind(&mon_id).execute(&pool).await.unwrap();
+    let missed = repo.find_missed_monitors().await.unwrap();
+    assert_eq!(missed.len(), 0);
+}
+
+#[tokio::test]
+async fn monitor_checker_run_once_creates_check_in_and_outbox() {
+    let pool = pool_with_migrations().await;
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let int_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO integrations (id, name, channel_type, config_json, status, created_at) VALUES (?, 'test', 'ntfy', '{\"url\":\"https://ntfy.sh\",\"topic\":\"t\",\"priority\":3,\"message\":\"alert\"}', 'active', datetime('now'))")
+        .bind(&int_id).execute(&pool).await.unwrap();
+    let now = chrono::Utc::now();
+    let past = now - chrono::Duration::seconds(60);
+    let mon_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, 'test', 'test', 'active', 'interval', 60, 0, ?, ?, datetime('now'))")
+        .bind(&mon_id).bind(past.format("%Y-%m-%d %H:%M:%S").to_string()).bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO monitor_integrations (monitor_id, integration_id) VALUES (?, ?)")
+        .bind(&mon_id)
+        .bind(&int_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let service = MonitorService::new(repo);
+    let checker = MonitorChecker::new(service, Duration::from_secs(60));
+    checker.run_once().await;
+    let count: i32 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+        .bind(&mon_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 1, "check_in record created");
+    let outbox_count: i32 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM notification_outbox WHERE monitor_id = ?")
+            .bind(&mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        outbox_count, 1,
+        "outbox entry created via check_in failure path"
+    );
 }

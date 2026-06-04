@@ -15,9 +15,13 @@ async fn test_app_with_pool() -> (axum::Router, SqlitePool) {
         .await
         .expect("failed to create test pool");
     let config = Config::for_test("sqlite::memory:");
-    let app = create_app_with_pool(pool.clone(), config)
-        .await
-        .expect("failed to create test app");
+    let app = create_app_with_pool(
+        pool.clone(),
+        config,
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await
+    .expect("failed to create test app");
     (app, pool)
 }
 

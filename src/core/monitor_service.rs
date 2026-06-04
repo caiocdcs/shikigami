@@ -127,6 +127,9 @@ impl<R: MonitorRepository> MonitorService<R> {
     ) -> Result<Vec<CheckIn>, MonitorError> {
         self.repo.get_check_ins(monitor_id, limit).await
     }
+    pub async fn find_missed_monitors(&self) -> Result<Vec<MonitorId>, MonitorError> {
+        self.repo.find_missed_monitors().await
+    }
 
     pub async fn ping(&self, monitor_id: MonitorId) -> Result<(), MonitorError> {
         self.check_in(monitor_id, CheckInOutcome::Success).await

@@ -337,6 +337,24 @@ impl MonitorRepository for SqliteMonitorRepository {
             .collect()
     }
 
+    async fn find_missed_monitors(&self) -> Result<Vec<MonitorId>, MonitorError> {
+        let rows: Vec<String> = sqlx::query_scalar(
+            r#"SELECT id FROM monitors
+               WHERE status NOT IN ('paused', 'missed')
+                 AND next_expected_at IS NOT NULL
+                 AND datetime(next_expected_at, '+' || grace_seconds || ' seconds') < datetime('now')"#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|s| {
+                let uuid = s.parse::<uuid::Uuid>()?;
+                Ok(MonitorId::from_uuid(uuid))
+            })
+            .collect()
+    }
+
     async fn ping(
         &self,
         monitor_id: MonitorId,

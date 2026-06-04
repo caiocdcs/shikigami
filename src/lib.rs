@@ -21,6 +21,7 @@ use tower_http::{
 use crate::{
     core::{
         integration_service::IntegrationService,
+        monitor_checker::MonitorChecker,
         monitor_service::MonitorService,
         notification_service::{DispatcherMap, NotificationService},
     },
@@ -67,9 +68,12 @@ pub async fn create_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
     Ok(pool)
 }
 
-pub async fn create_app(config: Config) -> anyhow::Result<Router> {
+pub async fn create_app(
+    config: Config,
+    shutdown_token: CancellationToken,
+) -> anyhow::Result<Router> {
     let pool = create_pool(config.database_url.expose_secret()).await?;
-    create_app_with_pool(pool, config).await
+    create_app_with_pool(pool, config, shutdown_token).await
 }
 
 pub fn build_notification_service(
@@ -91,7 +95,11 @@ pub fn build_notification_service(
     )
 }
 
-pub async fn create_app_with_pool(pool: Pool<Sqlite>, config: Config) -> anyhow::Result<Router> {
+pub async fn create_app_with_pool(
+    pool: Pool<Sqlite>,
+    config: Config,
+    shutdown_token: CancellationToken,
+) -> anyhow::Result<Router> {
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
@@ -99,11 +107,19 @@ pub async fn create_app_with_pool(pool: Pool<Sqlite>, config: Config) -> anyhow:
     let state = AppState::new(config, pool.clone());
 
     // Build and spawn the notification worker
-    let notification_service = build_notification_service(pool);
-    let shutdown_token = CancellationToken::new();
+    let notification_service = build_notification_service(pool.clone());
     let worker_token = shutdown_token.child_token();
     tokio::spawn(async move {
         notification_service.run(worker_token).await;
+    });
+
+    // Build and spawn the missed-monitor checker
+    let checker_repo = SqliteMonitorRepository::new(pool);
+    let checker_service = MonitorService::new(checker_repo);
+    let checker = MonitorChecker::new(checker_service, Duration::from_secs(60));
+    let checker_token = shutdown_token.child_token();
+    tokio::spawn(async move {
+        checker.run(checker_token).await;
     });
 
     let router = api::routes::router(state);

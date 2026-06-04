@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
 
     let shutdown_token = CancellationToken::new();
 
-    let app = create_app(config.clone()).await?;
+    let app = create_app(config.clone(), shutdown_token.clone()).await?;
 
     let addr = format!("0.0.0.0:{}", config.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;

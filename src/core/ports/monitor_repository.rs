@@ -49,6 +49,9 @@ pub trait MonitorRepository: Send + Sync + 'static {
         monitor_id: MonitorId,
         limit: i64,
     ) -> impl Future<Output = Result<Vec<CheckIn>, MonitorError>> + Send;
+    fn find_missed_monitors(
+        &self,
+    ) -> impl Future<Output = Result<Vec<MonitorId>, MonitorError>> + Send;
     fn ping(
         &self,
         monitor_id: MonitorId,
