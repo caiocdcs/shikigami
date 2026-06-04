@@ -10,6 +10,7 @@
 
   outputs =
     {
+      self,
       fenix,
       flake-utils,
       nixpkgs,
@@ -43,14 +44,19 @@
         packages.default = pkgs.stdenv.mkDerivation {
           name = "shikigami";
           src = ./.;
-          nativeBuildInputs = [ toolchain ];
+          nativeBuildInputs = [
+            toolchain
+            pkgs.cacert
+          ];
+          SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+          CARGO_HOME = "/tmp/cargo-home";
+          SQLX_OFFLINE = "true";
           buildPhase = ''
             cargo build --release
           '';
           installPhase = ''
             install -Dm755 target/release/shikigami -t $out/bin
           '';
-          SQLX_OFFLINE = "true";
         };
       }
     );
