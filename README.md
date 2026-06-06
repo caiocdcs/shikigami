@@ -14,7 +14,7 @@ curl -sSfL https://github.com/caiocesaralves/shikigami/releases/latest/download/
 Or with Nix:
 
 ```sh
-nix build github:caiocesaralves/shikigami
+nix build github:caiocdcs/shikigami
 ./result/bin/shikigami
 ```
 
@@ -44,6 +44,7 @@ if a ping is not received within the expected time + grace period, an alert is s
 |--------|------|-------------|
 | GET | `/health` | Liveness check |
 | GET | `/health/ready` | Readiness check (verifies DB) |
+| GET | `/health/report` | Report of all monitors with status, integrations, pending outbox |
 
 ### Monitors
 
