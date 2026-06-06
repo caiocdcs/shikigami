@@ -1,12 +1,17 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs =
     {
       self,
+      fenix,
       flake-utils,
       nixpkgs,
     }:
@@ -14,6 +19,7 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        toolchain = fenix.packages.${system}.stable.toolchain;
 
         version = "0.1.1";
         arch =
@@ -31,22 +37,40 @@
           .${arch} or null;
 
       in
-      pkgs.lib.optionalAttrs (arch != null) {
-        packages.default = pkgs.stdenv.mkDerivation {
-          pname = "shikigami";
-          inherit version;
-          src = pkgs.fetchurl {
-            url = "https://github.com/caiocdcs/shikigami/releases/download/v${version}/shikigami-${arch}.tar.gz";
-            inherit sha256;
-          };
-          sourceRoot = ".";
-          nativeBuildInputs = [ pkgs.patchelf ];
-          installPhase = ''
-            install -Dm755 shikigami -t $out/bin
-            patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" \
-              --set-rpath "${pkgs.stdenv.cc.cc.lib}/lib" $out/bin/shikigami
-          '';
+      {
+        devShells.default = pkgs.mkShell {
+          packages = with pkgs; [
+            toolchain
+            sqlx-cli
+            cargo-watch
+            just
+            sqlite
+          ];
+          SQLX_OFFLINE = "true";
+          DATABASE_URL = "sqlite:shikigami.db?mode=rwc";
+          shellHook = "echo \"shikigami dev shell\"";
         };
+
+        packages.default = (
+          if arch == null then
+            null
+          else
+            pkgs.stdenv.mkDerivation {
+              pname = "shikigami";
+              inherit version;
+              src = pkgs.fetchurl {
+                url = "https://github.com/caiocdcs/shikigami/releases/download/v${version}/shikigami-${arch}.tar.gz";
+                inherit sha256;
+              };
+              sourceRoot = ".";
+              nativeBuildInputs = [ pkgs.patchelf ];
+              installPhase = ''
+                install -Dm755 shikigami -t $out/bin
+                patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" \
+                  --set-rpath "${pkgs.stdenv.cc.cc.lib}/lib" $out/bin/shikigami
+              '';
+            }
+        );
       }
     );
 }
