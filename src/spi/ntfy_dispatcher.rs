@@ -45,7 +45,7 @@ impl NotificationDispatcher for NtfyDispatcher {
                 .body(msg)
                 .send()
                 .await
-                .map_err(|e| DispatchError::Transient(format!("ntfy request failed: {}", e)))?;
+                .map_err(|e| DispatchError::Transient(format!("ntfy request failed: {e}")))?;
 
             if resp.status().is_success() {
                 Ok(())

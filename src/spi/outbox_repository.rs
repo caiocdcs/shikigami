@@ -25,11 +25,11 @@ impl SqliteOutboxRepository {
 impl OutboxRepository for SqliteOutboxRepository {
     async fn fetch_pending(&self, limit: i64) -> Result<Vec<OutboxEntry>, sqlx::Error> {
         let rows = sqlx::query_as::<_, OutboxRow>(
-            r#"SELECT id, monitor_id, integration_id, message, retry_count
+            r"SELECT id, monitor_id, integration_id, message, retry_count
                FROM notification_outbox
                WHERE status = 'pending'
                ORDER BY created_at ASC
-               LIMIT ?"#,
+               LIMIT ?",
         )
         .bind(limit)
         .fetch_all(&self.pool)

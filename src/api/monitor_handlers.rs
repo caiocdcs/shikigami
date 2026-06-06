@@ -8,8 +8,13 @@ use uuid::Uuid;
 
 use crate::{
     AppState,
-    api::dtos::{CheckInResponse, CreateMonitorDto, IntegrationResponse, LinkIntegrationDto, MonitorResponse, UpdateMonitorDto},
-    core::domain::{CheckInOutcome, IntegrationId, Monitor, MonitorId, MonitorStatus, ScheduleType},
+    api::dtos::{
+        CheckInResponse, CreateMonitorDto, IntegrationResponse, LinkIntegrationDto,
+        MonitorResponse, UpdateMonitorDto,
+    },
+    core::domain::{
+        CheckInOutcome, IntegrationId, Monitor, MonitorId, MonitorStatus, ScheduleType,
+    },
     error::{AppError, AppResult},
 };
 

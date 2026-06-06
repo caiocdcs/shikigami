@@ -45,7 +45,7 @@ impl NotificationDispatcher for SlackDispatcher {
                 .json(&body)
                 .send()
                 .await
-                .map_err(|e| DispatchError::Transient(format!("slack request failed: {}", e)))?;
+                .map_err(|e| DispatchError::Transient(format!("slack request failed: {e}")))?;
 
             if resp.status().is_success() {
                 Ok(())

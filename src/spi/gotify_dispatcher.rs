@@ -3,8 +3,7 @@ use std::pin::Pin;
 use reqwest::Client;
 
 use crate::core::{
-    domain::DispatchError,
-    domain::integration::IntegrationConfig,
+    domain::DispatchError, domain::integration::IntegrationConfig,
     ports::notification_dispatcher::NotificationDispatcher,
 };
 
@@ -31,7 +30,7 @@ impl NotificationDispatcher for GotifyDispatcher {
             _ => {
                 return Box::pin(async {
                     Err(DispatchError::Permanent("not a gotify config".to_string()))
-                })
+                });
             }
         };
         let msg = message.to_string();
@@ -54,7 +53,7 @@ impl NotificationDispatcher for GotifyDispatcher {
                 .json(&body)
                 .send()
                 .await
-                .map_err(|e| DispatchError::Transient(format!("gotify request failed: {}", e)))?;
+                .map_err(|e| DispatchError::Transient(format!("gotify request failed: {e}")))?;
 
             if resp.status().is_success() {
                 Ok(())

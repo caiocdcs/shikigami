@@ -43,6 +43,7 @@
             toolchain
             sqlx-cli
             cargo-watch
+            cargo-audit
             just
             sqlite
           ];

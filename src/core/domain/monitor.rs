@@ -8,6 +8,12 @@ use validator::Validate;
 #[derive(Debug, Clone)]
 pub struct MonitorId(Uuid);
 
+impl Default for MonitorId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MonitorId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
@@ -122,14 +128,12 @@ impl ScheduleType {
             ScheduleType::Cron { cron_expr } => {
                 let cron = croner::Cron::from_str(cron_expr).map_err(|e| {
                     MonitorError::InvalidConfig(format!(
-                        "invalid cron expression '{}': {}",
-                        cron_expr, e
+                        "invalid cron expression '{cron_expr}': {e}"
                     ))
                 })?;
                 let next = cron.find_next_occurrence(from, false).map_err(|e| {
                     MonitorError::InvalidConfig(format!(
-                        "cron evaluation error for '{}': {}",
-                        cron_expr, e
+                        "cron evaluation error for '{cron_expr}': {e}"
                     ))
                 })?;
                 Ok(Some(next))
@@ -235,15 +239,16 @@ impl std::error::Error for MonitorError {}
 impl Display for MonitorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MonitorError::InvalidConfig(field) => write!(f, "Invalid config: {}", field),
+            MonitorError::InvalidConfig(field) => write!(f, "Invalid config: {field}"),
             MonitorError::NotFound(id) => write!(f, "Monitor not found: {}", id.as_uuid()),
-            MonitorError::Conflict(msg) => write!(f, "Conflict: {}", msg),
-            MonitorError::Database(msg) => write!(f, "Database error: {}", msg),
+            MonitorError::Conflict(msg) => write!(f, "Conflict: {msg}"),
+            MonitorError::Database(msg) => write!(f, "Database error: {msg}"),
         }
     }
 }
 
 impl MonitorError {
+    #[allow(clippy::needless_pass_by_value)]
     pub fn map_sqlx_error(e: sqlx::Error) -> Self {
         match &e {
             sqlx::Error::Database(db_err) => match db_err.code().as_deref() {
@@ -272,13 +277,13 @@ impl From<serde_json::Error> for MonitorError {
 
 impl From<uuid::Error> for MonitorError {
     fn from(error: uuid::Error) -> Self {
-        MonitorError::Database(format!("invalid uuid: {}", error))
+        MonitorError::Database(format!("invalid uuid: {error}"))
     }
 }
 
 impl From<chrono::ParseError> for MonitorError {
     fn from(error: chrono::ParseError) -> Self {
-        MonitorError::Database(format!("invalid datetime: {}", error))
+        MonitorError::Database(format!("invalid datetime: {error}"))
     }
 }
 

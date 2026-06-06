@@ -115,13 +115,12 @@ where
                 continue;
             }
 
-            let integration_id = match entry.integration_id.parse::<uuid::Uuid>() {
-                Ok(u) => IntegrationId::from_uuid(u),
-                Err(_) => {
-                    tracing::error!(entry_id = %entry.id, "invalid integration_id in outbox");
-                    let _ = self.outbox_repo.mark_failed(&entry.id).await;
-                    continue;
-                }
+            let integration_id = if let Ok(u) = entry.integration_id.parse::<uuid::Uuid>() {
+                IntegrationId::from_uuid(u)
+            } else {
+                tracing::error!(entry_id = %entry.id, "invalid integration_id in outbox");
+                let _ = self.outbox_repo.mark_failed(&entry.id).await;
+                continue;
             };
 
             let integration = match self.integration_repo.get_integration(integration_id).await {
@@ -157,7 +156,7 @@ where
                 }
                 Err(DispatchError::Transient(msg)) => {
                     tracing::warn!(entry_id = %entry.id, error = %msg, "transient dispatch failure");
-                    let current_retries = entry.retry_count as u32;
+                    let current_retries: u32 = entry.retry_count.try_into().unwrap_or(0);
                     if current_retries + 1 >= self.max_retries {
                         tracing::warn!(entry_id = %entry.id, retries = %current_retries, "max retries reached, marking failed");
                         if let Err(e) = self.outbox_repo.mark_failed(&entry.id).await {

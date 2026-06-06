@@ -7,6 +7,12 @@ use validator::Validate;
 #[derive(Debug, Clone)]
 pub struct IntegrationId(Uuid);
 
+impl Default for IntegrationId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IntegrationId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
@@ -69,15 +75,16 @@ impl std::error::Error for IntegrationError {}
 impl Display for IntegrationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IntegrationError::InvalidConfig(field) => write!(f, "Invalid config: {}", field),
+            IntegrationError::InvalidConfig(field) => write!(f, "Invalid config: {field}"),
             IntegrationError::NotFound(id) => write!(f, "Integration not found: {}", id.as_uuid()),
-            IntegrationError::Conflict(msg) => write!(f, "Conflict: {}", msg),
-            IntegrationError::Database(msg) => write!(f, "Database error: {}", msg),
+            IntegrationError::Conflict(msg) => write!(f, "Conflict: {msg}"),
+            IntegrationError::Database(msg) => write!(f, "Database error: {msg}"),
         }
     }
 }
 
 impl IntegrationError {
+    #[allow(clippy::needless_pass_by_value)]
     pub fn map_sqlx_error(e: sqlx::Error) -> Self {
         match &e {
             sqlx::Error::Database(db_err) => match db_err.code().as_deref() {
@@ -106,13 +113,13 @@ impl From<serde_json::Error> for IntegrationError {
 
 impl From<uuid::Error> for IntegrationError {
     fn from(error: uuid::Error) -> Self {
-        IntegrationError::Database(format!("invalid uuid: {}", error))
+        IntegrationError::Database(format!("invalid uuid: {error}"))
     }
 }
 
 impl From<chrono::ParseError> for IntegrationError {
     fn from(error: chrono::ParseError) -> Self {
-        IntegrationError::Database(format!("invalid datetime: {}", error))
+        IntegrationError::Database(format!("invalid datetime: {error}"))
     }
 }
 
