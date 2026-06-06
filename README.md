@@ -197,15 +197,15 @@ Rust 2024 / Tokio / Axum / sqlx / SQLite / reqwest
 
 ## Backlog
 
-- [ ] email dispatcher (SMTP via `lettre`)
-- [ ] retention policy for `check_ins`
-- [ ] API key authentication
-- [ ] rate limiting
-- [ ] cli for monitor registration
-- [ ] web UI
-- [ ] PostgreSQL support
-- [ ] metrics endpoint
-- [ ] systemd unit and Dockerfile examples
+- [ ] Slug-based pings (`POST /ping/my-job` instead of UUID)
+- [ ] Failure context with message (`POST /failure/my-job -d '{"message":"exit 1"}'`)
+- [ ] API key authentication (CRUD endpoints, ping endpoints stay open)
+- [ ] Web UI (read-only status page)
+- [ ] Email dispatcher (SMTP via `lettre`)
+- [ ] Retention policy for `check_ins`
+- [ ] NixOS module (`services.shikigami = { enable = true; };`)
+- [ ] Docker image (multi-arch)
+- [ ] Status badges (`![status](https://host/badge/my-job)`)
 
 ## License
 
