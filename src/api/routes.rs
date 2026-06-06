@@ -6,13 +6,13 @@ use axum::{
 };
 
 use crate::AppState;
-use crate::api::handlers;
-use crate::api::monitor_handlers;
+use crate::api::{handlers, monitor_handlers, report_handler};
 
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health_check))
         .route("/health/ready", get(readiness_check))
+        .route("/health/report", get(report_handler::health_report))
         .route(
             "/integrations",
             post(handlers::create_integration).get(handlers::get_integrations),
