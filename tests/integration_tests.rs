@@ -35,6 +35,104 @@ async fn response_json(response: axum::http::Response<Body>) -> serde_json::Valu
     serde_json::from_slice(&body).expect("failed to parse json")
 }
 
+async fn create_test_monitor(app: axum::Router) -> String {
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "test-monitor",
+                        "slug": "test-monitor",
+                        "schedule_type": "interval",
+                        "interval_seconds": 60,
+                        "grace_seconds": 10
+                    }))
+                    .expect("json"),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let body = response_json(response).await;
+    body["id"].as_str().expect("id").to_string()
+}
+
+async fn create_test_cron_monitor(app: axum::Router) -> String {
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "test-cron",
+                        "slug": "test-cron",
+                        "schedule_type": "cron",
+                        "cron_expr": "0 * * * *",
+                        "grace_seconds": 300
+                    }))
+                    .expect("json"),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let body = response_json(response).await;
+    body["id"].as_str().expect("id").to_string()
+}
+
+async fn create_test_integration(app: axum::Router) -> String {
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/integrations")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "test-ntfy",
+                        "channel": "ntfy",
+                        "config": {
+                            "url": "https://ntfy.sh",
+                            "topic": "alerts",
+                            "priority": 4,
+                            "message": "down"
+                        }
+                    }))
+                    .expect("json"),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let body = response_json(response).await;
+    body["id"].as_str().expect("id").to_string()
+}
+
+async fn link_monitor_integration(app: axum::Router, monitor_id: &str, integration_id: &str) {
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/monitors/{monitor_id}/integrations"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "integration_id": integration_id
+                    }))
+                    .expect("json"),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+}
+
 #[tokio::test]
 async fn create_integration_returns_201() {
     let app = test_app().await;
@@ -1049,4 +1147,232 @@ async fn ping_with_cron_updates_next_expected_at() {
     let body = response_json(get_response).await;
     assert!(body["last_pinged_at"].is_string());
     assert!(body["next_expected_at"].is_string());
+}
+
+#[tokio::test]
+async fn delete_monitor_cascades_to_checkins_integrations_outbox() {
+    let (app, pool) = test_app_with_pool().await;
+
+    // Create integration
+    let int_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/integrations")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "cascade-ntfy",
+                        "channel": "ntfy",
+                        "config": {
+                            "url": "https://ntfy.sh",
+                            "topic": "alerts",
+                            "priority": 4,
+                            "message": "down"
+                        }
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let int_body = response_json(int_response).await;
+    let int_id = int_body["id"].as_str().unwrap();
+
+    // Create monitor
+    let mon_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "cascade-monitor",
+                        "slug": "cascade-monitor",
+                        "schedule_type": "interval",
+                        "interval_seconds": 60,
+                        "grace_seconds": 10
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mon_body = response_json(mon_response).await;
+    let mon_id = mon_body["id"].as_str().unwrap();
+
+    // Link integration
+    let _link = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/monitors/{mon_id}/integrations"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "integration_id": int_id
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Create a failure check-in (writes to outbox)
+    let _failure = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/failure/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Verify data exists before delete
+    let check_ins: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+        .bind(mon_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(check_ins, 1, "should have 1 check-in before delete");
+
+    let links: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM monitor_integrations WHERE monitor_id = ?")
+            .bind(mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(links, 1, "should have 1 integration link before delete");
+
+    let outbox: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM notification_outbox WHERE monitor_id = ?")
+            .bind(mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(outbox, 1, "should have 1 outbox entry before delete");
+
+    // Delete the monitor
+    let delete_response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(&format!("/monitors/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(delete_response.status(), StatusCode::NO_CONTENT);
+
+    // Verify cascade: check-ins, links, and outbox are gone
+    let check_ins_after: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+            .bind(mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(check_ins_after, 0, "check-ins should be cascade-deleted");
+
+    let links_after: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM monitor_integrations WHERE monitor_id = ?")
+            .bind(mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        links_after, 0,
+        "integration links should be cascade-deleted"
+    );
+
+    let outbox_after: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM notification_outbox WHERE monitor_id = ?")
+            .bind(mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(outbox_after, 0, "outbox entries should be cascade-deleted");
+
+    // Integration itself should still exist
+    let int_still: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM integrations WHERE id = ?")
+        .bind(int_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(int_still, 1, "integration should survive monitor deletion");
+}
+
+#[tokio::test]
+async fn new_monitor_has_initial_next_expected_at() {
+    let app = test_app().await;
+
+    // Create interval monitor
+    let mon_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "initial-next",
+                        "slug": "initial-next",
+                        "schedule_type": "interval",
+                        "interval_seconds": 300,
+                        "grace_seconds": 30
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mon_body = response_json(mon_response).await;
+
+    assert!(
+        mon_body["next_expected_at"].is_string(),
+        "new monitor should have next_expected_at set"
+    );
+    assert!(
+        mon_body["last_pinged_at"].is_null(),
+        "new monitor should not have last_pinged_at"
+    );
+
+    // Create cron monitor
+    let cron_response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "cron-initial",
+                        "slug": "cron-initial",
+                        "schedule_type": "cron",
+                        "cron_expr": "0 * * * *",
+                        "grace_seconds": 300
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let cron_body = response_json(cron_response).await;
+    assert!(
+        cron_body["next_expected_at"].is_string(),
+        "new cron monitor should have next_expected_at set"
+    );
 }

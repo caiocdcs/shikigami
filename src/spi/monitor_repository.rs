@@ -161,7 +161,11 @@ impl MonitorRepository for SqliteMonitorRepository {
         row.map(Monitor::try_from).transpose()
     }
 
-    async fn new_monitor(&self, monitor: NewMonitor) -> Result<Monitor, MonitorError> {
+    async fn new_monitor(
+        &self,
+        monitor: NewMonitor,
+        next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<Monitor, MonitorError> {
         monitor.schedule_type.validate()?;
 
         let id = MonitorId::new();
@@ -171,9 +175,11 @@ impl MonitorRepository for SqliteMonitorRepository {
             ScheduleType::Cron { cron_expr } => (Some(cron_expr.clone()), None),
             ScheduleType::Interval { interval_seconds } => (None, Some(*interval_seconds)),
         };
+        let next_expected_str =
+            next_expected_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string());
 
-        sqlx::query!(
-            r#"INSERT INTO monitors (id, name, description, slug, status, schedule_type, cron_expr, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, NULL, NULL, datetime('now'))"#,
+        sqlx::query!
+            (r#"INSERT INTO monitors (id, name, description, slug, status, schedule_type, cron_expr, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, NULL, ?, datetime('now'))"#,
             id_str,
             monitor.name,
             monitor.description,
@@ -181,11 +187,14 @@ impl MonitorRepository for SqliteMonitorRepository {
             schedule_type_str,
             cron_expr,
             interval_seconds,
-            monitor.grace_seconds
+            monitor.grace_seconds,
+            next_expected_str
         )
         .execute(&self.pool)
         .await
         .map_err(MonitorError::map_sqlx_error)?;
+
+        let created_at = chrono::Utc::now();
 
         Ok(Monitor::new(
             id,
@@ -196,8 +205,8 @@ impl MonitorRepository for SqliteMonitorRepository {
             MonitorStatus::Active,
             monitor.grace_seconds,
             None,
-            None,
-            chrono::Utc::now(),
+            next_expected_at,
+            created_at,
         ))
     }
 
@@ -336,10 +345,10 @@ impl MonitorRepository for SqliteMonitorRepository {
 
     async fn find_missed_monitors(&self) -> Result<Vec<MonitorId>, MonitorError> {
         let rows: Vec<String> = sqlx::query_scalar(
-            r#"SELECT id FROM monitors
+            r"SELECT id FROM monitors
                WHERE status NOT IN ('paused', 'missed')
                  AND next_expected_at IS NOT NULL
-                 AND datetime(next_expected_at, '+' || grace_seconds || ' seconds') < datetime('now')"#,
+                 AND datetime(next_expected_at, '+' || grace_seconds || ' seconds') < datetime('now')",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -427,7 +436,7 @@ impl MonitorRepository for SqliteMonitorRepository {
 
             for int_id in integration_ids {
                 let outbox_id = uuid::Uuid::new_v4().to_string();
-                let message = format!("Monitor {} reported failure", monitor_id_str);
+                let message = format!("Monitor {monitor_id_str} reported failure");
                 sqlx::query!(
                     r#"INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'))"#,
                     outbox_id,

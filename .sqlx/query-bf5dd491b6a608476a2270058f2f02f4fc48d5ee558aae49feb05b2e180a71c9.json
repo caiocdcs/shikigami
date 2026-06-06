@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO monitors (id, name, description, slug, status, schedule_type, cron_expr, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, NULL, ?, datetime('now'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "bf5dd491b6a608476a2270058f2f02f4fc48d5ee558aae49feb05b2e180a71c9"
+}

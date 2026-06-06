@@ -34,11 +34,47 @@ async fn pool_with_migrations() -> SqlitePool {
         .run(&pool)
         .await
         .expect("migrations failed");
-    sqlx::query("PRAGMA foreign_keys = OFF")
+    sqlx::query("PRAGMA foreign_keys = ON")
         .execute(&pool)
         .await
         .expect("pragma failed");
     pool
+}
+
+/// Insert a valid monitor row and return its ID.
+async fn insert_monitor(pool: &SqlitePool) -> String {
+    let mon_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now();
+    let next = now + chrono::Duration::seconds(60);
+    sqlx::query("INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, 'test', 'test', 'active', 'interval', 60, 10, ?, ?, datetime('now'))")
+        .bind(&mon_id)
+        .bind(now.format("%Y-%m-%d %H:%M:%S").to_string())
+        .bind(next.format("%Y-%m-%d %H:%M:%S").to_string())
+        .execute(pool).await.expect("insert monitor");
+    mon_id
+}
+
+/// Insert a valid ntfy integration row and return its ID.
+async fn insert_integration(pool: &SqlitePool) -> String {
+    let int_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO integrations (id, name, channel_type, config_json, status, created_at) VALUES (?, 'test', 'ntfy', '{\"url\":\"https://ntfy.sh\",\"topic\":\"t\",\"priority\":3,\"message\":\"alert\"}', 'active', datetime('now'))")
+        .bind(&int_id)
+        .execute(pool).await.expect("insert integration");
+    int_id
+}
+
+/// Insert an outbox entry referencing valid parent records. Returns (entry_id, monitor_id, integration_id).
+async fn insert_outbox(pool: &SqlitePool, status: &str) -> (String, String, String) {
+    let mon_id = insert_monitor(pool).await;
+    let int_id = insert_integration(pool).await;
+    let entry_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, 'test', 0, ?, datetime('now'))")
+        .bind(&entry_id)
+        .bind(&mon_id)
+        .bind(&int_id)
+        .bind(status)
+        .execute(pool).await.expect("insert outbox");
+    (entry_id, mon_id, int_id)
 }
 
 // ---- Outbox Tests ----
@@ -47,9 +83,7 @@ async fn pool_with_migrations() -> SqlitePool {
 async fn outbox_state_pending_to_sent() {
     let pool = pool_with_migrations().await;
     let repo = SqliteOutboxRepository::new(pool.clone());
-    let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'pending', datetime('now'))")
-        .bind(&entry_id).execute(&pool).await.expect("insert");
+    let (entry_id, _, _) = insert_outbox(&pool, "pending").await;
     let entries = repo.fetch_pending(10).await.unwrap();
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].retry_count, 0);
@@ -75,9 +109,7 @@ async fn outbox_state_pending_to_sent() {
 async fn outbox_state_pending_to_failed() {
     let pool = pool_with_migrations().await;
     let repo = SqliteOutboxRepository::new(pool.clone());
-    let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'pending', datetime('now'))")
-        .bind(&entry_id).execute(&pool).await.unwrap();
+    let (entry_id, _, _) = insert_outbox(&pool, "pending").await;
     repo.claim_sending(&entry_id).await.unwrap();
     repo.mark_failed(&entry_id).await.unwrap();
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
@@ -92,9 +124,7 @@ async fn outbox_state_pending_to_failed() {
 async fn outbox_state_transient_retry_increments_count() {
     let pool = pool_with_migrations().await;
     let repo = SqliteOutboxRepository::new(pool.clone());
-    let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'pending', datetime('now'))")
-        .bind(&entry_id).execute(&pool).await.unwrap();
+    let (entry_id, _, _) = insert_outbox(&pool, "pending").await;
     repo.claim_sending(&entry_id).await.unwrap();
     repo.retry_later(&entry_id).await.unwrap();
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
@@ -115,9 +145,7 @@ async fn outbox_state_transient_retry_increments_count() {
 async fn outbox_resets_stale_sending_on_startup() {
     let pool = pool_with_migrations().await;
     let repo = SqliteOutboxRepository::new(pool.clone());
-    let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', 'i1', 'test', 0, 'sending', datetime('now'))")
-        .bind(&entry_id).execute(&pool).await.unwrap();
+    let (entry_id, _, _) = insert_outbox(&pool, "sending").await;
     let count = repo.reset_stale_sending().await.unwrap();
     assert_eq!(count, 1);
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
@@ -132,9 +160,21 @@ async fn outbox_resets_stale_sending_on_startup() {
 async fn notification_service_handles_missing_integration() {
     let pool = pool_with_migrations().await;
     let int_repo = SqliteIntegrationRepository::new(pool.clone());
+    let mon_id = insert_monitor(&pool).await;
+    // Use a valid UUID that doesn't exist as an integration
+    let fake_int_id = uuid::Uuid::new_v4().to_string();
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', '00000000-0000-0000-0000-000000000000', 'test', 0, 'pending', datetime('now'))")
-        .bind(&entry_id).execute(&pool).await.unwrap();
+    // Temporarily disable FK check to insert outbox with non-existent integration
+    sqlx::query("PRAGMA foreign_keys = OFF")
+        .execute(&pool)
+        .await
+        .expect("pragma failed");
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, 'test', 0, 'pending', datetime('now'))")
+        .bind(&entry_id).bind(&mon_id).bind(&fake_int_id).execute(&pool).await.expect("insert");
+    sqlx::query("PRAGMA foreign_keys = ON")
+        .execute(&pool)
+        .await
+        .expect("pragma failed");
     let client = reqwest::Client::new();
     let dispatchers = DispatcherMap::new(
         NtfyDispatcher::new(client.clone()),
@@ -173,9 +213,10 @@ async fn notification_service_transient_retries() {
         .await
         .unwrap();
     let int_id = integration.id.as_uuid().to_string();
+    let mon_id = insert_monitor(&pool).await;
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, 'm1', ?, 'alert', 0, 'pending', datetime('now'))")
-        .bind(&entry_id).bind(&int_id).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, 'alert', 0, 'pending', datetime('now'))")
+        .bind(&entry_id).bind(&mon_id).bind(&int_id).execute(&pool).await.unwrap();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(50))
         .build()
@@ -232,12 +273,16 @@ async fn notification_worker_responds_to_cancellation() {
 async fn find_missed_monitors_returns_expired() {
     let pool = pool_with_migrations().await;
     let repo = SqliteMonitorRepository::new(pool.clone());
-    let now = chrono::Utc::now();
-    let past = now - chrono::Duration::seconds(60);
-    let mon_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, 'test', 'test', 'active', 'interval', 60, 0, ?, ?, datetime('now'))")
-        .bind(&mon_id).bind(past.format("%Y-%m-%d %H:%M:%S").to_string()).bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
-        .execute(&pool).await.unwrap();
+    let mon_id = insert_monitor(&pool).await;
+    // Set next_expected_at to the past so it's missed
+    let past = chrono::Utc::now() - chrono::Duration::seconds(60);
+    sqlx::query("UPDATE monitors SET next_expected_at = ?, last_pinged_at = ? WHERE id = ?")
+        .bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .bind(&mon_id)
+        .execute(&pool)
+        .await
+        .unwrap();
     let missed = repo.find_missed_monitors().await.unwrap();
     assert_eq!(missed.len(), 1);
     assert_eq!(missed[0].as_uuid().to_string(), mon_id);
@@ -247,12 +292,15 @@ async fn find_missed_monitors_returns_expired() {
 async fn find_missed_monitors_skips_paused() {
     let pool = pool_with_migrations().await;
     let repo = SqliteMonitorRepository::new(pool.clone());
-    let now = chrono::Utc::now();
-    let past = now - chrono::Duration::seconds(60);
-    let mon_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, 'test', 'test', 'paused', 'interval', 60, 0, ?, ?, datetime('now'))")
-        .bind(&mon_id).bind(past.format("%Y-%m-%d %H:%M:%S").to_string()).bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
-        .execute(&pool).await.unwrap();
+    let mon_id = insert_monitor(&pool).await;
+    let past = chrono::Utc::now() - chrono::Duration::seconds(60);
+    sqlx::query("UPDATE monitors SET status = 'paused', next_expected_at = ?, last_pinged_at = ? WHERE id = ?")
+        .bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .bind(&mon_id)
+        .execute(&pool)
+        .await
+        .unwrap();
     let missed = repo.find_missed_monitors().await.unwrap();
     assert_eq!(missed.len(), 0);
 }
@@ -261,9 +309,12 @@ async fn find_missed_monitors_skips_paused() {
 async fn find_missed_monitors_skips_null_next_expected() {
     let pool = pool_with_migrations().await;
     let repo = SqliteMonitorRepository::new(pool.clone());
-    let mon_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, 'test', 'test', 'active', 'interval', 60, 0, NULL, NULL, datetime('now'))")
-        .bind(&mon_id).execute(&pool).await.unwrap();
+    let mon_id = insert_monitor(&pool).await;
+    sqlx::query("UPDATE monitors SET next_expected_at = NULL, last_pinged_at = NULL WHERE id = ?")
+        .bind(&mon_id)
+        .execute(&pool)
+        .await
+        .unwrap();
     let missed = repo.find_missed_monitors().await.unwrap();
     assert_eq!(missed.len(), 0);
 }
@@ -272,15 +323,16 @@ async fn find_missed_monitors_skips_null_next_expected() {
 async fn monitor_checker_run_once_creates_check_in_and_outbox() {
     let pool = pool_with_migrations().await;
     let repo = SqliteMonitorRepository::new(pool.clone());
-    let int_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO integrations (id, name, channel_type, config_json, status, created_at) VALUES (?, 'test', 'ntfy', '{\"url\":\"https://ntfy.sh\",\"topic\":\"t\",\"priority\":3,\"message\":\"alert\"}', 'active', datetime('now'))")
-        .bind(&int_id).execute(&pool).await.unwrap();
-    let now = chrono::Utc::now();
-    let past = now - chrono::Duration::seconds(60);
-    let mon_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, last_pinged_at, next_expected_at, created_at) VALUES (?, 'test', 'test', 'active', 'interval', 60, 0, ?, ?, datetime('now'))")
-        .bind(&mon_id).bind(past.format("%Y-%m-%d %H:%M:%S").to_string()).bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
-        .execute(&pool).await.unwrap();
+    let int_id = insert_integration(&pool).await;
+    let mon_id = insert_monitor(&pool).await;
+    let past = chrono::Utc::now() - chrono::Duration::seconds(60);
+    sqlx::query("UPDATE monitors SET next_expected_at = ?, last_pinged_at = ? WHERE id = ?")
+        .bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .bind(&mon_id)
+        .execute(&pool)
+        .await
+        .unwrap();
     sqlx::query("INSERT INTO monitor_integrations (monitor_id, integration_id) VALUES (?, ?)")
         .bind(&mon_id)
         .bind(&int_id)

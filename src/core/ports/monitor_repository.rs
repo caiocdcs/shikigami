@@ -21,6 +21,7 @@ pub trait MonitorRepository: Send + Sync + 'static {
     fn new_monitor(
         &self,
         monitor: NewMonitor,
+        next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
     ) -> impl Future<Output = Result<Monitor, MonitorError>> + Send;
     fn delete_monitor(
         &self,

@@ -72,7 +72,10 @@ impl<R: MonitorRepository> MonitorService<R> {
 
         new_monitor.validate()?;
 
-        self.repo.new_monitor(new_monitor).await
+        let now = chrono::Utc::now();
+        let next_expected_at = new_monitor.schedule_type.next_occurrence_after(&now)?;
+
+        self.repo.new_monitor(new_monitor, next_expected_at).await
     }
 
     pub async fn get_monitors(&self) -> Result<Vec<Monitor>, MonitorError> {

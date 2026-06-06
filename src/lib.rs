@@ -1,3 +1,9 @@
+#![warn(clippy::all, clippy::pedantic)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::ignored_unit_patterns)]
+
 pub mod api;
 pub mod config;
 pub mod core;
@@ -61,6 +67,14 @@ pub async fn create_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
         .min_connections(2)
         .acquire_timeout(Duration::from_secs(3))
         .idle_timeout(Duration::from_secs(600))
+        .after_connect(|conn, _meta| {
+            Box::pin(async {
+                sqlx::query("PRAGMA foreign_keys = ON")
+                    .execute(conn)
+                    .await?;
+                Ok(())
+            })
+        })
         .connect(database_url)
         .await
         .context("failed to connect to the database")?;
