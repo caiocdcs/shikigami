@@ -93,6 +93,18 @@ impl<R: MonitorRepository> MonitorService<R> {
         self.repo.get_monitor(monitor_id).await
     }
 
+    pub async fn resolve_monitor_id(&self, reference: &str) -> Result<MonitorId, MonitorError> {
+        if let Ok(uuid) = reference.parse::<uuid::Uuid>() {
+            return Ok(MonitorId::from_uuid(uuid));
+        }
+        let monitor = self
+            .repo
+            .get_monitor_by_slug(reference)
+            .await?
+            .ok_or_else(|| MonitorError::NotFoundBySlug(reference.to_string()))?;
+        Ok(monitor.id)
+    }
+
     pub async fn delete_monitor(&self, monitor_id: MonitorId) -> Result<(), MonitorError> {
         self.repo.delete_monitor(monitor_id).await
     }

@@ -166,6 +166,19 @@ impl MonitorRepository for SqliteMonitorRepository {
         row.map(Monitor::try_from).transpose()
     }
 
+    async fn get_monitor_by_slug(&self, slug: &str) -> Result<Option<Monitor>, MonitorError> {
+        let row = sqlx::query_as!(
+            MonitorRow,
+            r#"SELECT id as "id!", name as "name!", description, slug as "slug!", status as "status!", schedule_type as "schedule_type!", cron_expr, interval_seconds, grace_seconds as "grace_seconds!", last_pinged_at, next_expected_at, created_at as "created_at!", timezone FROM monitors WHERE slug = ?"#,
+            slug
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(MonitorError::map_sqlx_error)?;
+
+        row.map(Monitor::try_from).transpose()
+    }
+
     async fn new_monitor(
         &self,
         monitor: NewMonitor,

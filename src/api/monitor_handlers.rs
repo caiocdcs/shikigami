@@ -204,23 +204,22 @@ pub async fn get_monitor_check_ins(
 #[axum::debug_handler]
 pub async fn ping_monitor(
     State(state): State<AppState>,
-    Path(monitor_id): Path<Uuid>,
+    Path(reference): Path<String>,
 ) -> AppResult<StatusCode> {
-    state
-        .monitor_service
-        .ping(MonitorId::from_uuid(monitor_id))
-        .await?;
+    let monitor_id = state.monitor_service.resolve_monitor_id(&reference).await?;
+    state.monitor_service.ping(monitor_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 #[axum::debug_handler]
 pub async fn success_check_in(
     State(state): State<AppState>,
-    Path(monitor_id): Path<Uuid>,
+    Path(reference): Path<String>,
 ) -> AppResult<StatusCode> {
+    let monitor_id = state.monitor_service.resolve_monitor_id(&reference).await?;
     state
         .monitor_service
-        .check_in(MonitorId::from_uuid(monitor_id), CheckInOutcome::Success)
+        .check_in(monitor_id, CheckInOutcome::Success)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -228,11 +227,12 @@ pub async fn success_check_in(
 #[axum::debug_handler]
 pub async fn failure_check_in(
     State(state): State<AppState>,
-    Path(monitor_id): Path<Uuid>,
+    Path(reference): Path<String>,
 ) -> AppResult<StatusCode> {
+    let monitor_id = state.monitor_service.resolve_monitor_id(&reference).await?;
     state
         .monitor_service
-        .check_in(MonitorId::from_uuid(monitor_id), CheckInOutcome::Failure)
+        .check_in(monitor_id, CheckInOutcome::Failure)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

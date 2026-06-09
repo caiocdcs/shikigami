@@ -52,7 +52,7 @@ impl From<MonitorError> for AppError {
     fn from(err: MonitorError) -> Self {
         match err {
             MonitorError::InvalidConfig(field) => AppError::Validation(field),
-            MonitorError::NotFound(_) => AppError::NotFound,
+            MonitorError::NotFound(_) | MonitorError::NotFoundBySlug(_) => AppError::NotFound,
             MonitorError::Conflict(msg) => AppError::Conflict(msg),
             MonitorError::Database(msg) => AppError::Internal(msg),
         }

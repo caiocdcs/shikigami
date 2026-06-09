@@ -153,9 +153,12 @@ interval monitors. Timestamps are always stored and returned in UTC.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/ping/{uuid}` | Heartbeat (creates check-in with outcome=success) |
-| POST | `/success/{uuid}` | Explicit success report |
-| POST | `/failure/{uuid}` | Failure report (triggers notification) |
+| POST | `/ping/{id}` | Heartbeat (creates check-in with outcome=success) |
+| POST | `/success/{id}` | Explicit success report |
+| POST | `/failure/{id}` | Failure report (triggers notification) |
+
+`{id}` is either the monitor UUID or its slug, so `POST /ping/my-job` works as well as
+`POST /ping/<uuid>`. Slugs are restricted to `[A-Za-z0-9_-]` (length 1-50).
 
 ## Example: nightly backup monitor
 

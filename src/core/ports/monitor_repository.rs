@@ -18,6 +18,10 @@ pub trait MonitorRepository: Send + Sync + 'static {
         &self,
         monitor_id: MonitorId,
     ) -> impl Future<Output = Result<Option<Monitor>, MonitorError>> + Send;
+    fn get_monitor_by_slug(
+        &self,
+        slug: &str,
+    ) -> impl Future<Output = Result<Option<Monitor>, MonitorError>> + Send;
     fn new_monitor(
         &self,
         monitor: NewMonitor,

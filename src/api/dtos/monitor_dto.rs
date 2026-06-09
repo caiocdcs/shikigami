@@ -9,7 +9,10 @@ pub struct CreateMonitorDto {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub description: Option<String>,
-    #[validate(length(min = 1, max = 50))]
+    #[validate(
+        length(min = 1, max = 50),
+        custom(function = "crate::core::domain::monitor::validate_slug")
+    )]
     pub slug: String,
     pub schedule_type: String,
     pub cron_expr: Option<String>,
@@ -24,7 +27,10 @@ pub struct UpdateMonitorDto {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub description: Option<String>,
-    #[validate(length(min = 1, max = 50))]
+    #[validate(
+        length(min = 1, max = 50),
+        custom(function = "crate::core::domain::monitor::validate_slug")
+    )]
     pub slug: String,
     pub schedule_type: String,
     pub cron_expr: Option<String>,

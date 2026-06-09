@@ -28,12 +28,26 @@ impl MonitorId {
     }
 }
 
+pub fn validate_slug(slug: &str) -> Result<(), validator::ValidationError> {
+    if !slug.is_empty()
+        && slug
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new(
+            "slug must contain only letters, digits, '-' or '_'",
+        ))
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, Validate)]
 pub struct NewMonitor {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub description: Option<String>,
-    #[validate(length(min = 1, max = 50))]
+    #[validate(length(min = 1, max = 50), custom(function = "validate_slug"))]
     pub slug: String,
     pub schedule_type: ScheduleType,
     #[validate(range(min = 1))]
@@ -46,7 +60,7 @@ pub struct Monitor {
     #[validate(length(min = 1, max = 100))]
     pub name: String,
     pub description: Option<String>,
-    #[validate(length(min = 1, max = 50))]
+    #[validate(length(min = 1, max = 50), custom(function = "validate_slug"))]
     pub slug: String,
     pub schedule_type: ScheduleType,
     pub status: MonitorStatus,
@@ -244,6 +258,7 @@ impl Display for MonitorStatus {
 pub enum MonitorError {
     InvalidConfig(String),
     NotFound(MonitorId),
+    NotFoundBySlug(String),
     Conflict(String),
     Database(String),
 }
@@ -255,6 +270,7 @@ impl Display for MonitorError {
         match self {
             MonitorError::InvalidConfig(field) => write!(f, "Invalid config: {field}"),
             MonitorError::NotFound(id) => write!(f, "Monitor not found: {}", id.as_uuid()),
+            MonitorError::NotFoundBySlug(slug) => write!(f, "Monitor not found: {slug}"),
             MonitorError::Conflict(msg) => write!(f, "Conflict: {msg}"),
             MonitorError::Database(msg) => write!(f, "Database error: {msg}"),
         }
@@ -350,5 +366,19 @@ mod tests {
             schedule.validate(),
             Err(MonitorError::InvalidConfig(_))
         ));
+    }
+
+    #[test]
+    fn validate_slug_accepts_url_safe() {
+        assert!(validate_slug("my-job").is_ok());
+        assert!(validate_slug("job_1").is_ok());
+        assert!(validate_slug("Backup2026").is_ok());
+    }
+
+    #[test]
+    fn validate_slug_rejects_unsafe() {
+        assert!(validate_slug("has space").is_err());
+        assert!(validate_slug("a/b").is_err());
+        assert!(validate_slug("").is_err());
     }
 }

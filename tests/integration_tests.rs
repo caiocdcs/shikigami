@@ -1492,3 +1492,137 @@ async fn delete_nonexistent_monitor_returns_404() {
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+async fn create_monitor_with_slug(app: axum::Router, slug: &str) -> String {
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": slug,
+                        "slug": slug,
+                        "schedule_type": "interval",
+                        "interval_seconds": 3600,
+                        "grace_seconds": 600
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = response_json(response).await;
+    body["id"].as_str().unwrap().to_string()
+}
+
+#[tokio::test]
+async fn ping_by_slug_returns_204_and_updates_timestamps() {
+    let app = test_app().await;
+    let mon_id = create_monitor_with_slug(app.clone(), "my-job").await;
+
+    let ping_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/ping/my-job")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ping_response.status(), StatusCode::NO_CONTENT);
+
+    let get_response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(&format!("/monitors/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = response_json(get_response).await;
+    assert!(body["last_pinged_at"].is_string());
+}
+
+#[tokio::test]
+async fn ping_by_unknown_slug_returns_404() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/ping/no-such-slug")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn success_and_failure_by_slug_return_204() {
+    let app = test_app().await;
+    create_monitor_with_slug(app.clone(), "slug-checkins").await;
+
+    let success = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/success/slug-checkins")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(success.status(), StatusCode::NO_CONTENT);
+
+    let failure = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/failure/slug-checkins")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(failure.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn create_monitor_invalid_slug_returns_400() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "bad-slug",
+                        "slug": "bad slug!",
+                        "schedule_type": "interval",
+                        "interval_seconds": 60,
+                        "grace_seconds": 10
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
