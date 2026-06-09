@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE monitors SET name = ?, description = ?, slug = ?, status = ?, schedule_type = ?, cron_expr = ?, interval_seconds = ?, grace_seconds = ?, last_pinged_at = ?, next_expected_at = ?, timezone = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": []
+  },
+  "hash": "8bd18c5e589001f1fc6bf259da4c06af29caafc3e74723f1364a3b516f31142a"
+}

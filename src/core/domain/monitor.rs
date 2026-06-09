@@ -87,19 +87,25 @@ impl Monitor {
 #[non_exhaustive]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum ScheduleType {
-    Cron { cron_expr: String },
+    Cron { cron_expr: String, timezone: String },
     Interval { interval_seconds: i64 },
 }
 
 impl ScheduleType {
     pub fn validate(&self) -> Result<(), MonitorError> {
         match self {
-            ScheduleType::Cron { cron_expr } => {
+            ScheduleType::Cron {
+                cron_expr,
+                timezone,
+            } => {
                 if cron_expr.is_empty() {
                     return Err(MonitorError::InvalidConfig(
                         "cron_expr must not be empty".to_string(),
                     ));
                 }
+                timezone.parse::<chrono_tz::Tz>().map_err(|_| {
+                    MonitorError::InvalidConfig(format!("invalid timezone '{timezone}'"))
+                })?;
                 Ok(())
             }
             ScheduleType::Interval { interval_seconds } => {
@@ -125,18 +131,25 @@ impl ScheduleType {
             ScheduleType::Interval { interval_seconds } => {
                 Ok(Some(*from + chrono::Duration::seconds(*interval_seconds)))
             }
-            ScheduleType::Cron { cron_expr } => {
+            ScheduleType::Cron {
+                cron_expr,
+                timezone,
+            } => {
+                let tz: chrono_tz::Tz = timezone.parse().map_err(|_| {
+                    MonitorError::InvalidConfig(format!("invalid timezone '{timezone}'"))
+                })?;
                 let cron = croner::Cron::from_str(cron_expr).map_err(|e| {
                     MonitorError::InvalidConfig(format!(
                         "invalid cron expression '{cron_expr}': {e}"
                     ))
                 })?;
-                let next = cron.find_next_occurrence(from, false).map_err(|e| {
+                let from_local = from.with_timezone(&tz);
+                let next = cron.find_next_occurrence(&from_local, false).map_err(|e| {
                     MonitorError::InvalidConfig(format!(
                         "cron evaluation error for '{cron_expr}': {e}"
                     ))
                 })?;
-                Ok(Some(next))
+                Ok(Some(next.with_timezone(&chrono::Utc)))
             }
         }
     }
@@ -149,6 +162,7 @@ impl TryFrom<&str> for ScheduleType {
         match value {
             "cron" => Ok(ScheduleType::Cron {
                 cron_expr: String::new(),
+                timezone: "UTC".to_string(),
             }),
             "interval" => Ok(ScheduleType::Interval {
                 interval_seconds: 0,
@@ -290,5 +304,51 @@ impl From<chrono::ParseError> for MonitorError {
 impl From<validator::ValidationErrors> for MonitorError {
     fn from(errors: validator::ValidationErrors) -> Self {
         MonitorError::InvalidConfig(errors.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn utc(s: &str) -> chrono::DateTime<chrono::Utc> {
+        chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+            .unwrap()
+            .and_utc()
+    }
+
+    #[test]
+    fn next_occurrence_after_cron_evaluates_in_local_timezone() {
+        // 9am daily in Sao_Paulo (UTC-3) == 12:00 UTC.
+        let schedule = ScheduleType::Cron {
+            cron_expr: "0 9 * * *".to_string(),
+            timezone: "America/Sao_Paulo".to_string(),
+        };
+        let from = utc("2026-06-09 00:00:00");
+        let next = schedule.next_occurrence_after(&from).unwrap().unwrap();
+        assert_eq!(next, utc("2026-06-09 12:00:00"));
+    }
+
+    #[test]
+    fn next_occurrence_after_cron_defaults_to_utc() {
+        let schedule = ScheduleType::Cron {
+            cron_expr: "0 9 * * *".to_string(),
+            timezone: "UTC".to_string(),
+        };
+        let from = utc("2026-06-09 00:00:00");
+        let next = schedule.next_occurrence_after(&from).unwrap().unwrap();
+        assert_eq!(next, utc("2026-06-09 09:00:00"));
+    }
+
+    #[test]
+    fn validate_rejects_invalid_timezone() {
+        let schedule = ScheduleType::Cron {
+            cron_expr: "0 9 * * *".to_string(),
+            timezone: "Not/AZone".to_string(),
+        };
+        assert!(matches!(
+            schedule.validate(),
+            Err(MonitorError::InvalidConfig(_))
+        ));
     }
 }

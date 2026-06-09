@@ -1376,3 +1376,119 @@ async fn new_monitor_has_initial_next_expected_at() {
         "new cron monitor should have next_expected_at set"
     );
 }
+
+#[tokio::test]
+async fn create_cron_monitor_with_timezone_evaluates_in_local_time() {
+    let app = test_app().await;
+
+    // 9am daily in Sao_Paulo (UTC-3, no DST) -> next_expected_at at 12:00 UTC.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "tz-cron",
+                        "slug": "tz-cron",
+                        "schedule_type": "cron",
+                        "cron_expr": "0 9 * * *",
+                        "grace_seconds": 300,
+                        "timezone": "America/Sao_Paulo"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = response_json(response).await;
+    assert_eq!(body["timezone"], "America/Sao_Paulo");
+    let next = body["next_expected_at"].as_str().unwrap();
+    assert!(
+        next.contains("T12:00:00"),
+        "expected 9am Sao_Paulo stored as 12:00 UTC, got {next}"
+    );
+}
+
+#[tokio::test]
+async fn create_cron_monitor_without_timezone_defaults_to_utc() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "utc-cron",
+                        "slug": "utc-cron",
+                        "schedule_type": "cron",
+                        "cron_expr": "0 9 * * *",
+                        "grace_seconds": 300
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = response_json(response).await;
+    assert_eq!(body["timezone"], "UTC");
+    let next = body["next_expected_at"].as_str().unwrap();
+    assert!(next.contains("T09:00:00"), "expected 9am UTC, got {next}");
+}
+
+#[tokio::test]
+async fn create_cron_monitor_invalid_timezone_returns_400() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "bad-tz",
+                        "slug": "bad-tz",
+                        "schedule_type": "cron",
+                        "cron_expr": "0 9 * * *",
+                        "grace_seconds": 300,
+                        "timezone": "Not/AZone"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn delete_nonexistent_monitor_returns_404() {
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/monitors/00000000-0000-0000-0000-000000000000")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}

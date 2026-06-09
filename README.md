@@ -135,6 +135,10 @@ dynamic user.
 | POST | `/monitors/{id}/integrations` | Link an integration to a monitor |
 | DELETE | `/monitors/{id}/integrations/{integration_id}` | Unlink an integration |
 
+Cron monitors accept an optional `timezone` (IANA name, e.g. `America/Sao_Paulo`),
+so `0 9 * * *` fires at 9am local time. It defaults to `UTC` and is ignored for
+interval monitors. Timestamps are always stored and returned in UTC.
+
 ### Integrations
 
 | Method | Path | Description |
@@ -159,7 +163,7 @@ dynamic user.
 # 1. Create the monitor (daily at 03:00, with 1-hour grace)
 MON_ID=$(curl -s -X POST http://localhost:3000/monitors \
   -H 'Content-Type: application/json' \
-  -d '{"name":"nightly-backup","slug":"nightly-backup","schedule_type":"cron","cron_expr":"0 3 * * *","grace_seconds":3600}' \
+  -d '{"name":"nightly-backup","slug":"nightly-backup","schedule_type":"cron","cron_expr":"0 3 * * *","timezone":"America/Sao_Paulo","grace_seconds":3600}' \
   | jq -r .id)
 
 # 2. Create a notification integration (ntfy)

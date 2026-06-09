@@ -16,6 +16,7 @@ pub struct CreateMonitorDto {
     pub interval_seconds: Option<i64>,
     #[validate(range(min = 1))]
     pub grace_seconds: i64,
+    pub timezone: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -31,6 +32,7 @@ pub struct UpdateMonitorDto {
     #[validate(range(min = 1))]
     pub grace_seconds: i64,
     pub status: String,
+    pub timezone: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,14 +54,23 @@ pub struct MonitorResponse {
     pub last_pinged_at: Option<String>,
     pub next_expected_at: Option<String>,
     pub created_at: String,
+    pub timezone: Option<String>,
 }
 
 impl From<Monitor> for MonitorResponse {
     fn from(monitor: Monitor) -> Self {
-        let (schedule_type, cron_expr, interval_seconds) = match &monitor.schedule_type {
-            ScheduleType::Cron { cron_expr } => ("cron".to_string(), Some(cron_expr.clone()), None),
+        let (schedule_type, cron_expr, interval_seconds, timezone) = match &monitor.schedule_type {
+            ScheduleType::Cron {
+                cron_expr,
+                timezone,
+            } => (
+                "cron".to_string(),
+                Some(cron_expr.clone()),
+                None,
+                Some(timezone.clone()),
+            ),
             ScheduleType::Interval { interval_seconds } => {
-                ("interval".to_string(), None, Some(*interval_seconds))
+                ("interval".to_string(), None, Some(*interval_seconds), None)
             }
         };
         Self {
@@ -75,6 +86,7 @@ impl From<Monitor> for MonitorResponse {
             last_pinged_at: monitor.last_pinged_at.map(|dt| dt.to_rfc3339()),
             next_expected_at: monitor.next_expected_at.map(|dt| dt.to_rfc3339()),
             created_at: monitor.created_at.to_rfc3339(),
+            timezone,
         }
     }
 }

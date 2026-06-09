@@ -17,6 +17,7 @@ pub struct MonitorReportEntry {
     pub last_pinged_at: Option<String>,
     pub next_expected_at: Option<String>,
     pub created_at: String,
+    pub timezone: Option<String>,
     pub integrations: i64,
     pub outbox_pending: i64,
 }
@@ -40,12 +41,18 @@ pub async fn health_report(State(state): State<AppState>) -> AppResult<Json<Repo
 
     for m in monitors {
         let mon_id = m.id.as_uuid().to_string();
-        let (schedule_type, cron_expr, interval_seconds) = match &m.schedule_type {
-            crate::core::domain::ScheduleType::Cron { cron_expr } => {
-                ("cron".to_string(), Some(cron_expr.clone()), None)
-            }
+        let (schedule_type, cron_expr, interval_seconds, timezone) = match &m.schedule_type {
+            crate::core::domain::ScheduleType::Cron {
+                cron_expr,
+                timezone,
+            } => (
+                "cron".to_string(),
+                Some(cron_expr.clone()),
+                None,
+                Some(timezone.clone()),
+            ),
             crate::core::domain::ScheduleType::Interval { interval_seconds } => {
-                ("interval".to_string(), None, Some(*interval_seconds))
+                ("interval".to_string(), None, Some(*interval_seconds), None)
             }
         };
 
@@ -82,6 +89,7 @@ pub async fn health_report(State(state): State<AppState>) -> AppResult<Json<Repo
             last_pinged_at: m.last_pinged_at.map(|dt| dt.to_rfc3339()),
             next_expected_at: m.next_expected_at.map(|dt| dt.to_rfc3339()),
             created_at: m.created_at.to_rfc3339(),
+            timezone,
             integrations,
             outbox_pending,
         });

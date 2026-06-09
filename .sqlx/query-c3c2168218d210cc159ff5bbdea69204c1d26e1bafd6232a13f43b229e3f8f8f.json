@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!\", name as \"name!\", description, slug as \"slug!\", status as \"status!\", schedule_type as \"schedule_type!\", cron_expr, interval_seconds, grace_seconds as \"grace_seconds!\", last_pinged_at, next_expected_at, created_at as \"created_at!\" FROM monitors",
+  "query": "SELECT id as \"id!\", name as \"name!\", description, slug as \"slug!\", status as \"status!\", schedule_type as \"schedule_type!\", cron_expr, interval_seconds, grace_seconds as \"grace_seconds!\", last_pinged_at, next_expected_at, created_at as \"created_at!\", timezone FROM monitors",
   "describe": {
     "columns": [
       {
@@ -62,6 +62,11 @@
         "name": "created_at!",
         "ordinal": 11,
         "type_info": "Text"
+      },
+      {
+        "name": "timezone",
+        "ordinal": 12,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -79,8 +84,9 @@
       false,
       true,
       true,
-      false
+      false,
+      true
     ]
   },
-  "hash": "74cc82f2b6a9d2d028275dbdb7a61650690930db2fa98b821ac5110ebe66034c"
+  "hash": "c3c2168218d210cc159ff5bbdea69204c1d26e1bafd6232a13f43b229e3f8f8f"
 }

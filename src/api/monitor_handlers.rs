@@ -33,6 +33,7 @@ pub async fn create_monitor(
             payload.cron_expr,
             payload.interval_seconds,
             payload.grace_seconds,
+            payload.timezone,
         )
         .await?;
     Ok((StatusCode::CREATED, Json(monitor.into())))
@@ -82,7 +83,10 @@ pub async fn update_monitor(
             let expr = payload
                 .cron_expr
                 .ok_or_else(|| AppError::Validation("cron_expr required".to_string()))?;
-            ScheduleType::Cron { cron_expr: expr }
+            ScheduleType::Cron {
+                cron_expr: expr,
+                timezone: payload.timezone.unwrap_or_else(|| "UTC".to_string()),
+            }
         }
         "interval" => {
             let secs = payload

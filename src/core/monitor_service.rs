@@ -27,6 +27,7 @@ impl<R: MonitorRepository> MonitorService<R> {
         cron_expr: Option<String>,
         interval_seconds: Option<i64>,
         grace_seconds: i64,
+        timezone: Option<String>,
     ) -> Result<Monitor, MonitorError> {
         let schedule = match schedule_type.as_str() {
             "cron" => {
@@ -38,7 +39,10 @@ impl<R: MonitorRepository> MonitorService<R> {
                         "cron_expr must not be empty".to_string(),
                     ));
                 }
-                ScheduleType::Cron { cron_expr: expr }
+                ScheduleType::Cron {
+                    cron_expr: expr,
+                    timezone: timezone.unwrap_or_else(|| "UTC".to_string()),
+                }
             }
             "interval" => {
                 let secs = interval_seconds.ok_or_else(|| {
@@ -95,6 +99,7 @@ impl<R: MonitorRepository> MonitorService<R> {
 
     pub async fn update_monitor(&self, monitor: Monitor) -> Result<(), MonitorError> {
         monitor.validate()?;
+        monitor.schedule_type.validate()?;
         self.repo.update_monitor(monitor).await
     }
 
