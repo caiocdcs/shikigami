@@ -2,16 +2,15 @@ use axum::{
     Router,
     extract::State,
     http::StatusCode,
+    middleware,
     routing::{delete, get, post},
 };
 
 use crate::AppState;
-use crate::api::{handlers, monitor_handlers, report_handler};
+use crate::api::{auth, handlers, monitor_handlers, report_handler, status_ui};
 
 pub fn router(state: AppState) -> Router {
-    Router::new()
-        .route("/health", get(health_check))
-        .route("/health/ready", get(readiness_check))
+    let protected = Router::new()
         .route("/health/report", get(report_handler::health_report))
         .route(
             "/integrations",
@@ -46,6 +45,14 @@ pub fn router(state: AppState) -> Router {
             "/monitors/{monitor_id}/integrations/{integration_id}",
             delete(monitor_handlers::unlink_integration),
         )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_api_key,
+        ));
+
+    let mut open = Router::new()
+        .route("/health", get(health_check))
+        .route("/health/ready", get(readiness_check))
         .route("/ping/{monitor_id}", post(monitor_handlers::ping_monitor))
         .route(
             "/success/{monitor_id}",
@@ -54,8 +61,15 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/failure/{monitor_id}",
             post(monitor_handlers::failure_check_in),
-        )
-        .with_state(state)
+        );
+
+    if state.config.ui_enabled {
+        open = open
+            .route("/status", get(status_ui::status_index))
+            .route("/status/{slug}", get(status_ui::monitor_detail));
+    }
+
+    protected.merge(open).with_state(state)
 }
 
 async fn health_check() -> StatusCode {

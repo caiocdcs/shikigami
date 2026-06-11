@@ -32,74 +32,34 @@ pub struct ReportResponse {
 }
 
 pub async fn health_report(State(state): State<AppState>) -> AppResult<Json<ReportResponse>> {
-    let monitors = state.monitor_service.get_monitors().await?;
+    let report = state.monitor_service.status_report().await?;
 
-    let mut entries = Vec::with_capacity(monitors.len());
-    let mut healthy = 0usize;
-    let mut missed = 0usize;
-    let mut paused = 0usize;
-
-    for m in monitors {
-        let mon_id = m.id.as_uuid().to_string();
-        let (schedule_type, cron_expr, interval_seconds, timezone) = match &m.schedule_type {
-            crate::core::domain::ScheduleType::Cron {
-                cron_expr,
-                timezone,
-            } => (
-                "cron".to_string(),
-                Some(cron_expr.clone()),
-                None,
-                Some(timezone.clone()),
-            ),
-            crate::core::domain::ScheduleType::Interval { interval_seconds } => {
-                ("interval".to_string(), None, Some(*interval_seconds), None)
-            }
-        };
-
-        let integrations: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM monitor_integrations WHERE monitor_id = ?")
-                .bind(&mon_id)
-                .fetch_one(&state.pg_pool)
-                .await
-                .unwrap_or(0);
-
-        let outbox_pending: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM notification_outbox WHERE monitor_id = ? AND status = 'pending'",
-        )
-        .bind(&mon_id)
-        .fetch_one(&state.pg_pool)
-        .await
-        .unwrap_or(0);
-
-        match m.status {
-            crate::core::domain::MonitorStatus::Active => healthy += 1,
-            crate::core::domain::MonitorStatus::Missed => missed += 1,
-            crate::core::domain::MonitorStatus::Paused => paused += 1,
-        }
-
-        entries.push(MonitorReportEntry {
-            id: mon_id,
-            name: m.name,
-            slug: m.slug,
-            status: m.status.to_string(),
-            schedule_type,
-            cron_expr,
-            interval_seconds,
-            grace_seconds: m.grace_seconds,
-            last_pinged_at: m.last_pinged_at.map(|dt| dt.to_rfc3339()),
-            next_expected_at: m.next_expected_at.map(|dt| dt.to_rfc3339()),
-            created_at: m.created_at.to_rfc3339(),
-            timezone,
-            integrations,
-            outbox_pending,
-        });
-    }
+    let monitors = report
+        .monitors
+        .into_iter()
+        .map(|entry| MonitorReportEntry {
+            id: entry.id,
+            name: entry.name,
+            slug: entry.slug,
+            status: entry.status.to_string(),
+            schedule_type: entry.schedule_type,
+            cron_expr: entry.cron_expr,
+            interval_seconds: entry.interval_seconds,
+            grace_seconds: entry.grace_seconds,
+            last_pinged_at: entry.last_pinged_at.map(|dt| dt.to_rfc3339()),
+            next_expected_at: entry.next_expected_at.map(|dt| dt.to_rfc3339()),
+            created_at: entry.created_at.to_rfc3339(),
+            timezone: entry.timezone,
+            integrations: entry.integrations,
+            outbox_pending: entry.outbox_pending,
+        })
+        .collect();
 
     Ok(Json(ReportResponse {
-        total: entries.len(),
-        healthy,
-        missed,
-        paused,
-        monitors: entries,
+        total: report.total,
+        healthy: report.healthy,
+        missed: report.missed,
+        paused: report.paused,
+        monitors,
     }))
 }

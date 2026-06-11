@@ -1,6 +1,6 @@
 [package]
 name = "shikigami"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
@@ -28,6 +28,7 @@ http = "1"
 croner = "3"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 tokio-util = { version = "0.7", features = ["rt"] }
+askama = "0.16.0"
 
 [dev-dependencies]
 http-body-util = "0.1"

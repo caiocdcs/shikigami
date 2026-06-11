@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                m.id as \"id!\",\n                m.name as \"name!\",\n                m.slug as \"slug!\",\n                m.status as \"status!\",\n                m.schedule_type as \"schedule_type!\",\n                m.cron_expr,\n                m.interval_seconds,\n                m.grace_seconds as \"grace_seconds!\",\n                m.last_pinged_at,\n                m.next_expected_at,\n                m.created_at as \"created_at!\",\n                m.timezone,\n                COALESCE(mi.integrations, 0) as \"integrations!\",\n                COALESCE(o.outbox_pending, 0) as \"outbox_pending!\"\n            FROM monitors m\n            LEFT JOIN (\n                SELECT monitor_id, COUNT(*) as integrations\n                FROM monitor_integrations\n                GROUP BY monitor_id\n            ) mi ON m.id = mi.monitor_id\n            LEFT JOIN (\n                SELECT monitor_id, COUNT(*) as outbox_pending\n                FROM notification_outbox\n                WHERE status = 'pending'\n                GROUP BY monitor_id\n            ) o ON m.id = o.monitor_id\n            ORDER BY m.name",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "slug!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "status!",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "schedule_type!",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "cron_expr",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "interval_seconds",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "grace_seconds!",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "last_pinged_at",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "next_expected_at",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "timezone",
+        "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "integrations!",
+        "ordinal": 12,
+        "type_info": "Integer"
+      },
+      {
+        "name": "outbox_pending!",
+        "ordinal": 13,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "d096ac7e5b3b30c2b3a33d57a09947ff4cad583d028eccd73b1415fac8dadcde"
+}

@@ -120,6 +120,12 @@ pub async fn create_app_with_pool(
         .context("failed to run database migrations")?;
     let state = AppState::new(config, pool.clone());
 
+    if state.config.api_key.is_none() {
+        tracing::warn!(
+            "API_KEY not set: CRUD endpoints are UNAUTHENTICATED. Set API_KEY to protect them."
+        );
+    }
+
     // Build and spawn the notification worker
     let notification_service = build_notification_service(pool.clone());
     let worker_token = shutdown_token.child_token();

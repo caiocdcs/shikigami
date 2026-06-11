@@ -1626,3 +1626,313 @@ async fn create_monitor_invalid_slug_returns_400() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
+
+// --- API key auth tests ---
+
+async fn test_app_with_key(key: &str) -> axum::Router {
+    let pool = SqlitePool::connect(":memory:")
+        .await
+        .expect("failed to create test pool");
+    let config = Config::for_test_with_key("sqlite::memory:", key);
+    create_app_with_pool(pool, config, tokio_util::sync::CancellationToken::new())
+        .await
+        .expect("failed to create test app")
+}
+
+#[tokio::test]
+async fn protected_route_without_key_returns_401() {
+    let app = test_app_with_key("secret").await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/monitors")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn protected_route_with_wrong_key_returns_401() {
+    let app = test_app_with_key("secret").await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/monitors")
+                .header("Authorization", "Bearer wrong")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn protected_route_with_correct_key_returns_200() {
+    let app = test_app_with_key("secret").await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/monitors")
+                .header("Authorization", "Bearer secret")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn health_report_without_key_returns_401() {
+    let app = test_app_with_key("secret").await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/health/report")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn ping_without_key_is_open() {
+    let app = test_app_with_key("secret").await;
+
+    // Create monitor with the key (CRUD is protected)
+    let create_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer secret")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "ping-open-test",
+                        "slug": "ping-open-test",
+                        "schedule_type": "interval",
+                        "interval_seconds": 60,
+                        "grace_seconds": 10
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    let body = response_json(create_resp).await;
+    let mon_id = body["id"].as_str().expect("id").to_string();
+
+    // Ping works without any key
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/ping/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn no_api_key_config_leaves_crud_open() {
+    // existing test_app() uses api_key: None, CRUD should still work
+    let app = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/monitors")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+// --- Web UI tests ---
+
+async fn test_app_with_ui() -> axum::Router {
+    let pool = SqlitePool::connect(":memory:")
+        .await
+        .expect("failed to create test pool");
+    let config = Config::for_test_with_ui("sqlite::memory:", true);
+    create_app_with_pool(pool, config, tokio_util::sync::CancellationToken::new())
+        .await
+        .expect("failed to create test app")
+}
+
+async fn response_body(response: axum::http::Response<Body>) -> String {
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("failed to read body")
+        .to_bytes();
+    String::from_utf8_lossy(&body).to_string()
+}
+
+#[tokio::test]
+async fn status_page_returns_html_with_monitors() {
+    let app = test_app_with_ui().await;
+
+    // Create a monitor
+    let _create = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "My Backup Job",
+                        "slug": "my-backup-job",
+                        "schedule_type": "interval",
+                        "interval_seconds": 3600,
+                        "grace_seconds": 300
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Fetch status page
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/status")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = response_body(response).await;
+    assert!(html.contains("<title>Shikigami - Monitor Status</title>"));
+    assert!(html.contains("My Backup Job"));
+    assert!(html.contains("my-backup-job"));
+}
+
+#[tokio::test]
+async fn status_page_returns_404_when_ui_disabled() {
+    let app = test_app().await; // UI disabled by default
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/status")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn monitor_detail_page_shows_checkins() {
+    let app = test_app_with_ui().await;
+
+    // Create monitor
+    let _create = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/monitors")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&serde_json::json!({
+                        "name": "Health Check",
+                        "slug": "health-check",
+                        "schedule_type": "interval",
+                        "interval_seconds": 60,
+                        "grace_seconds": 10
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Ping it
+    let _ping = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/ping/health-check")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Fetch detail page
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/status/health-check")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = response_body(response).await;
+    assert!(html.contains("<title>Health Check - Shikigami</title>"));
+    assert!(html.contains("Health Check"));
+    assert!(html.contains("success"));
+}
+
+#[tokio::test]
+async fn monitor_detail_unknown_slug_returns_404() {
+    let app = test_app_with_ui().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/status/unknown-slug")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}

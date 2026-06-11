@@ -59,6 +59,8 @@ Environment variables (or a `.env` file, `__` as nesting separator):
 | `DATABASE_URL` | required | SQLite connection string (e.g. `sqlite:shikigami.db?mode=rwc`) |
 | `LOG_LEVEL` | `info` | `tracing` filter (e.g. `info,sqlx=warn`) |
 | `PORT` | `3000` | Listen port |
+| `API_KEY` | unset | Bearer token required for CRUD and `/health/report`. Unset = open + startup warning. |
+| `UI_ENABLED` | `false` | Serve public status page at `/status` (no auth). |
 
 Example `.env`:
 
@@ -113,6 +115,23 @@ dynamic user.
 
 ## API
 
+When `API_KEY` is set, all management endpoints (`/monitors*`, `/integrations*`,
+`/health/report`) require `Authorization: Bearer <key>`. The ingress endpoints
+(`/ping`, `/success`, `/failure`) and health probes (`/health`, `/health/ready`)
+stay open so monitored jobs can ping without a key.
+
+### Status UI
+
+When `UI_ENABLED=true`, a read-only status page is available:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/status` | Status overview: summary counts + table of all monitors |
+| GET | `/status/{slug}` | Monitor detail: config + last 20 check-ins |
+
+The UI is public (no auth) and reuses the same data as `/health/report`.
+Designed for airgapped/self-hosted use — no external CSS/JS.
+
 ### Health
 
 | Method | Path | Description |
@@ -166,18 +185,21 @@ interval monitors. Timestamps are always stored and returned in UTC.
 # 1. Create the monitor (daily at 03:00, with 1-hour grace)
 MON_ID=$(curl -s -X POST http://localhost:3000/monitors \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $API_KEY" \
   -d '{"name":"nightly-backup","slug":"nightly-backup","schedule_type":"cron","cron_expr":"0 3 * * *","timezone":"America/Sao_Paulo","grace_seconds":3600}' \
   | jq -r .id)
 
 # 2. Create a notification integration (ntfy)
 INT_ID=$(curl -s -X POST http://localhost:3000/integrations \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $API_KEY" \
   -d '{"name":"alerts","channel":"ntfy","config":{"url":"https://ntfy.sh","topic":"homelab","priority":5,"message":"alert"}}' \
   | jq -r .id)
 
 # 3. Link them
 curl -X POST http://localhost:3000/monitors/$MON_ID/integrations \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $API_KEY" \
   -d "{\"integration_id\":\"$INT_ID\"}"
 
 # 4. In your backup script

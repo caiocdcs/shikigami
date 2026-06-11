@@ -323,6 +323,33 @@ impl From<validator::ValidationErrors> for MonitorError {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct StatusReportEntry {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+    pub status: MonitorStatus,
+    pub schedule_type: String,
+    pub cron_expr: Option<String>,
+    pub interval_seconds: Option<i64>,
+    pub grace_seconds: i64,
+    pub last_pinged_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub timezone: Option<String>,
+    pub integrations: i64,
+    pub outbox_pending: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct StatusReport {
+    pub total: usize,
+    pub healthy: usize,
+    pub missed: usize,
+    pub paused: usize,
+    pub monitors: Vec<StatusReportEntry>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

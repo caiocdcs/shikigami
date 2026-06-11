@@ -3,7 +3,7 @@ use validator::Validate;
 use crate::core::{
     domain::{
         CheckInOutcome, Integration, IntegrationId, Monitor, MonitorError, MonitorId,
-        MonitorStatus, NewMonitor, ScheduleType,
+        MonitorStatus, NewMonitor, ScheduleType, monitor::StatusReport,
     },
     ports::{CheckIn, MonitorRepository},
 };
@@ -93,6 +93,10 @@ impl<R: MonitorRepository> MonitorService<R> {
         self.repo.get_monitor(monitor_id).await
     }
 
+    pub async fn get_monitor_by_slug(&self, slug: &str) -> Result<Option<Monitor>, MonitorError> {
+        self.repo.get_monitor_by_slug(slug).await
+    }
+
     pub async fn resolve_monitor_id(&self, reference: &str) -> Result<MonitorId, MonitorError> {
         if let Ok(uuid) = reference.parse::<uuid::Uuid>() {
             return Ok(MonitorId::from_uuid(uuid));
@@ -178,5 +182,29 @@ impl<R: MonitorRepository> MonitorService<R> {
         self.repo
             .check_in(monitor_id, outcome, now, next_expected, new_status)
             .await
+    }
+
+    pub async fn status_report(&self) -> Result<StatusReport, MonitorError> {
+        let entries = self.repo.status_report().await?;
+        let total = entries.len();
+        let mut healthy = 0usize;
+        let mut missed = 0usize;
+        let mut paused = 0usize;
+
+        for entry in &entries {
+            match entry.status {
+                MonitorStatus::Active => healthy += 1,
+                MonitorStatus::Missed => missed += 1,
+                MonitorStatus::Paused => paused += 1,
+            }
+        }
+
+        Ok(StatusReport {
+            total,
+            healthy,
+            missed,
+            paused,
+            monitors: entries,
+        })
     }
 }

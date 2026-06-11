@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="30">
+    <title>Shikigami - Monitor Status</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #111; color: #eee; padding: 2rem; }
+        h1 { margin-bottom: 1rem; font-size: 1.5rem; }
+        .summary { display: flex; gap: 1.5rem; margin-bottom: 2rem; flex-wrap: wrap; }
+        .stat { background: #222; padding: 1rem 1.5rem; border-radius: 6px; }
+        .stat-value { font-size: 2rem; font-weight: bold; }
+        .stat-label { color: #888; font-size: 0.875rem; }
+        .healthy { color: #4ade80; }
+        .missed { color: #f87171; }
+        .paused { color: #fbbf24; }
+        table { width: 100%; border-collapse: collapse; background: #1a1a1a; border-radius: 6px; overflow: hidden; }
+        th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid #333; }
+        th { background: #222; font-weight: 600; color: #888; font-size: 0.75rem; text-transform: uppercase; }
+        a { color: #60a5fa; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .status-badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .status-active { background: #166534; color: #4ade80; }
+        .status-missed { background: #7f1d1d; color: #f87171; }
+        .status-paused { background: #78350f; color: #fbbf24; }
+        .meta { color: #666; font-size: 0.75rem; }
+        .footer { margin-top: 2rem; color: #666; font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+    <h1>Shikigami</h1>
+    <div class="summary">
+        <div class="stat">
+            <div class="stat-value">{{ total }}</div>
+            <div class="stat-label">Total</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value healthy">{{ healthy }}</div>
+            <div class="stat-label">Active</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value missed">{{ missed }}</div>
+            <div class="stat-label">Missed</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value paused">{{ paused }}</div>
+            <div class="stat-label">Paused</div>
+        </div>
+    </div>
+    {% if monitors.is_empty() %}
+    <p>No monitors configured.</p>
+    {% else %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Schedule</th>
+                <th>Last Ping</th>
+                <th>Next Expected</th>
+                <th>Integrations</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in monitors %}
+            <tr>
+                <td><a href="/status/{{ m.slug }}">{{ m.name }}</a></td>
+                <td><span class="status-badge status-{{ m.status }}">{{ m.status }}</span></td>
+                <td class="meta">{{ m.schedule_display }}</td>
+                <td class="meta"{% if let Some(abs) = m.last_ping_absolute %} title="{{ abs }}"{% endif %}>{{ m.last_ping_display }}</td>
+                <td class="meta"{% if let Some(abs) = m.next_expected_absolute %} title="{{ abs }}"{% endif %}>{{ m.next_expected_display }}</td>
+                <td class="meta">{{ m.integrations }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+    <div class="footer">Updated: {{ updated_at }} · refreshes every 30s</div>
+</body>
+</html>

@@ -4,7 +4,7 @@ use crate::core::{
     domain::{
         CheckInOutcome, Integration, Monitor, MonitorError,
         integration::{IntegrationChannel, IntegrationConfig, IntegrationId, IntegrationStatus},
-        monitor::{MonitorId, MonitorStatus, NewMonitor, ScheduleType},
+        monitor::{MonitorId, MonitorStatus, NewMonitor, ScheduleType, StatusReportEntry},
     },
     ports::monitor_repository::{CheckIn, MonitorRepository},
 };
@@ -128,6 +128,25 @@ struct CheckInRow {
     outcome: String,
     comments: Option<String>,
 }
+
+#[derive(FromRow)]
+struct StatusReportRow {
+    id: String,
+    name: String,
+    slug: String,
+    status: String,
+    schedule_type: String,
+    cron_expr: Option<String>,
+    interval_seconds: Option<i64>,
+    grace_seconds: i64,
+    last_pinged_at: Option<String>,
+    next_expected_at: Option<String>,
+    created_at: String,
+    timezone: Option<String>,
+    integrations: i64,
+    outbox_pending: i64,
+}
+
 #[derive(Clone)]
 pub struct SqliteMonitorRepository {
     pool: SqlitePool,
@@ -481,5 +500,67 @@ impl MonitorRepository for SqliteMonitorRepository {
         }
 
         Ok(())
+    }
+
+    async fn status_report(&self) -> Result<Vec<StatusReportEntry>, MonitorError> {
+        let rows = sqlx::query_as!(
+            StatusReportRow,
+            r#"SELECT
+                m.id as "id!",
+                m.name as "name!",
+                m.slug as "slug!",
+                m.status as "status!",
+                m.schedule_type as "schedule_type!",
+                m.cron_expr,
+                m.interval_seconds,
+                m.grace_seconds as "grace_seconds!",
+                m.last_pinged_at,
+                m.next_expected_at,
+                m.created_at as "created_at!",
+                m.timezone,
+                COALESCE(mi.integrations, 0) as "integrations!",
+                COALESCE(o.outbox_pending, 0) as "outbox_pending!"
+            FROM monitors m
+            LEFT JOIN (
+                SELECT monitor_id, COUNT(*) as integrations
+                FROM monitor_integrations
+                GROUP BY monitor_id
+            ) mi ON m.id = mi.monitor_id
+            LEFT JOIN (
+                SELECT monitor_id, COUNT(*) as outbox_pending
+                FROM notification_outbox
+                WHERE status = 'pending'
+                GROUP BY monitor_id
+            ) o ON m.id = o.monitor_id
+            ORDER BY m.name"#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|row| {
+                let status = MonitorStatus::try_from(row.status.as_str())?;
+                let created_at = parse_datetime(&row.created_at)?;
+                let last_pinged_at = parse_optional_datetime(row.last_pinged_at.as_ref())?;
+                let next_expected_at = parse_optional_datetime(row.next_expected_at.as_ref())?;
+                let schedule_type = row.schedule_type.clone();
+                Ok(StatusReportEntry {
+                    id: row.id,
+                    name: row.name,
+                    slug: row.slug,
+                    status,
+                    schedule_type,
+                    cron_expr: row.cron_expr,
+                    interval_seconds: row.interval_seconds,
+                    grace_seconds: row.grace_seconds,
+                    last_pinged_at,
+                    next_expected_at,
+                    created_at,
+                    timezone: row.timezone,
+                    integrations: row.integrations,
+                    outbox_pending: row.outbox_pending,
+                })
+            })
+            .collect()
     }
 }

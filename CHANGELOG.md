@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-11
+
+### Added
+
+- API key authentication: set `API_KEY` env var to require `Authorization: Bearer <key>` on
+  all management endpoints (`/monitors*`, `/integrations*`, `/health/report`). Ingress
+  endpoints (`/ping`, `/success`, `/failure`) and health probes stay open. Unset = CRUD
+  open with a startup warning.
+- Read-only status UI: set `UI_ENABLED=true` to serve a public status page at `/status`
+  with a summary view of all monitors and a detail page at `/status/{slug}` with check-in
+  history. Feature-gated, off by default.
+- `status_report()` query: single SQL query with aggregated counts (integrations, pending
+  outbox) for the status UI and JSON report — no N+1 queries.
+
+### Changed
+
+- `/health/report` JSON endpoint now uses the shared `status_report()` query, fixing the
+  N+1 SQL-in-API-layer smell.
+
 ## [0.2.0] - 2026-06-09
 
 ### Added
@@ -50,7 +69,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Notification dispatch (ntfy, gotify, slack)
 - SQLite with foreign key enforcement
 
-[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/caiocdcs/shikigami/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/caiocdcs/shikigami/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/caiocdcs/shikigami/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/caiocdcs/shikigami/releases/tag/v0.1.0

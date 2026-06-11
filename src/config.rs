@@ -11,6 +11,11 @@ pub struct Config {
 
     #[serde(default = "default_log_level")]
     pub log_level: String,
+
+    pub api_key: Option<SecretString>,
+
+    #[serde(default)]
+    pub ui_enabled: bool,
 }
 
 fn default_port() -> u16 {
@@ -45,6 +50,28 @@ impl Config {
             port: 3000,
             database_url: SecretString::new(database_url.to_string().into()),
             log_level: "debug".to_string(),
+            api_key: None,
+            ui_enabled: false,
+        }
+    }
+
+    pub fn for_test_with_key(database_url: &str, key: &str) -> Self {
+        Self {
+            port: 3000,
+            database_url: SecretString::new(database_url.to_string().into()),
+            log_level: "debug".to_string(),
+            api_key: Some(SecretString::new(key.to_string().into())),
+            ui_enabled: false,
+        }
+    }
+
+    pub fn for_test_with_ui(database_url: &str, ui_enabled: bool) -> Self {
+        Self {
+            port: 3000,
+            database_url: SecretString::new(database_url.to_string().into()),
+            log_level: "debug".to_string(),
+            api_key: None,
+            ui_enabled,
         }
     }
 }
