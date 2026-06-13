@@ -60,6 +60,19 @@ jobs:
           pattern: shikigami-*
           merge-multiple: true
 
+      - name: Extract changelog
+        id: changelog
+        run: |
+          version=${{ github.ref_name }}
+          # Extract the section for this version from CHANGELOG.md
+          # Pattern: ## [0.4.0] ... up to the next ## heading
+          body=$(awk \
+            -v ver="${version#v}" \
+            '/^## \['"${ver}"'\]/{found=1; next} /^## \[/{found=0} found' \
+            CHANGELOG.md)
+          # Save to file for gh release (avoids multiline string issues)
+          echo "$body" > RELEASE_BODY.md
+
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -67,5 +80,5 @@ jobs:
           gh release create ${{ github.ref_name }} *.tar.gz *.tar.gz.sha256 install.sh \
             --repo ${{ github.repository }} \
             --title ${{ github.ref_name }} \
-            --generate-notes \
+            --notes-file RELEASE_BODY.md \
             --verify-tag
