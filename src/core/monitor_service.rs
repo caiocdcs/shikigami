@@ -3,7 +3,7 @@ use validator::Validate;
 use crate::core::{
     domain::{
         CheckInOutcome, Integration, IntegrationId, Monitor, MonitorError, MonitorId,
-        MonitorStatus, NewMonitor, ScheduleType, monitor::StatusReport,
+        MonitorStatus, NewMonitor, NotificationContent, ScheduleType, monitor::StatusReport,
     },
     ports::{CheckIn, MonitorRepository},
 };
@@ -179,8 +179,25 @@ impl<R: MonitorRepository> MonitorService<R> {
             CheckInOutcome::Failure => MonitorStatus::Missed,
         };
 
+        let notification = if matches!(outcome, CheckInOutcome::Failure) {
+            Some(NotificationContent::for_failure(
+                &monitor.name,
+                &monitor.slug,
+                monitor.last_pinged_at,
+            ))
+        } else {
+            None
+        };
+
         self.repo
-            .check_in(monitor_id, outcome, now, next_expected, new_status)
+            .check_in(
+                monitor_id,
+                outcome,
+                now,
+                next_expected,
+                new_status,
+                notification,
+            )
             .await
     }
 

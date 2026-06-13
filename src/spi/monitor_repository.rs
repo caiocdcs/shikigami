@@ -2,7 +2,7 @@ use sqlx::{FromRow, SqlitePool};
 
 use crate::core::{
     domain::{
-        CheckInOutcome, Integration, Monitor, MonitorError,
+        CheckInOutcome, Integration, Monitor, MonitorError, NotificationContent,
         integration::{IntegrationChannel, IntegrationConfig, IntegrationId, IntegrationStatus},
         monitor::{MonitorId, MonitorStatus, NewMonitor, ScheduleType, StatusReportEntry},
     },
@@ -441,6 +441,7 @@ impl MonitorRepository for SqliteMonitorRepository {
         timestamp: chrono::DateTime<chrono::Utc>,
         next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
         new_status: MonitorStatus,
+        notification: Option<NotificationContent>,
     ) -> Result<(), MonitorError> {
         let monitor_id_str = monitor_id.as_uuid().to_string();
         let now_str = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
@@ -475,7 +476,7 @@ impl MonitorRepository for SqliteMonitorRepository {
         .map_err(MonitorError::map_sqlx_error)?;
 
         // On failure, write to notification_outbox for each linked integration
-        if matches!(outcome, CheckInOutcome::Failure) {
+        if let Some(notification) = notification {
             let integration_ids: Vec<String> = sqlx::query_scalar!(
                 r#"SELECT integration_id FROM monitor_integrations WHERE monitor_id = ?"#,
                 monitor_id_str
@@ -483,15 +484,17 @@ impl MonitorRepository for SqliteMonitorRepository {
             .fetch_all(&self.pool)
             .await?;
 
+            let notification_json =
+                serde_json::to_string(&notification).map_err(MonitorError::from)?;
+
             for int_id in integration_ids {
                 let outbox_id = uuid::Uuid::new_v4().to_string();
-                let message = format!("Monitor {monitor_id_str} reported failure");
                 sqlx::query!(
                     r#"INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'))"#,
                     outbox_id,
                     monitor_id_str,
                     int_id,
-                    message
+                    notification_json
                 )
                 .execute(&self.pool)
                 .await

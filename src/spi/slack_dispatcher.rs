@@ -3,7 +3,7 @@ use std::pin::Pin;
 use reqwest::Client;
 
 use crate::core::{
-    domain::DispatchError, domain::integration::IntegrationConfig,
+    domain::{DispatchError, IntegrationConfig, NotificationContent},
     ports::notification_dispatcher::NotificationDispatcher,
 };
 
@@ -22,7 +22,7 @@ impl NotificationDispatcher for SlackDispatcher {
     fn dispatch(
         &self,
         config: &IntegrationConfig,
-        message: &str,
+        notification: &NotificationContent,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<(), DispatchError>> + Send>> {
         let client = self.client.clone();
         let slack = match config {
@@ -33,16 +33,17 @@ impl NotificationDispatcher for SlackDispatcher {
                 });
             }
         };
-        let msg = message.to_string();
+        let title = notification.title.clone();
+        let body = notification.body.clone();
 
         Box::pin(async move {
-            let body = serde_json::json!({
-                "text": format!("*Shikigami Alert*\n{}", msg),
+            let payload = serde_json::json!({
+                "text": format!("*{}*\n{}", title, body),
             });
 
             let resp = client
                 .post(&slack.webhook_url)
-                .json(&body)
+                .json(&payload)
                 .send()
                 .await
                 .map_err(|e| DispatchError::Transient(format!("slack request failed: {e}")))?;

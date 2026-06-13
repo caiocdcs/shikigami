@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-13
+
+### Added
+
+- `NotificationContent` domain struct: notification messages now carry monitor name,
+  slug, and last-seen time instead of raw UUIDs. Each dispatcher (ntfy, gotify, slack)
+  uses the title and body fields appropriate to its channel.
+
+### Changed
+
+- Notification message composition moved from `SqliteMonitorRepository` (SPI) to
+  `MonitorService` (core). Repos only persist; services compute business values.
+- `NotificationDispatcher` trait signature: `message: &str` replaced by
+  `notification: &NotificationContent`. Implementations must use the struct fields.
+- `OutboxEntry.message: String` replaced by `OutboxEntry.notification: NotificationContent`.
+  The `message` column now stores serialized JSON.
+- `MonitorRepository::check_in` gains `notification: Option<NotificationContent>` parameter.
+- ntfy dispatcher: `Title` header now uses `notification.title` (monitor name) instead of
+  hardcoded "Shikigami Alert".
+- gotify dispatcher: `title` field uses `notification.title` instead of
+  hardcoded "Shikigami Alert".
+- slack dispatcher: message heading uses `notification.title` instead of
+  hardcoded "Shikigami Alert".
+
 ## [0.3.0] - 2026-06-11
 
 ### Added
@@ -69,7 +93,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Notification dispatch (ntfy, gotify, slack)
 - SQLite with foreign key enforcement
 
-[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/caiocdcs/shikigami/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/caiocdcs/shikigami/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/caiocdcs/shikigami/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/caiocdcs/shikigami/compare/v0.1.0...v0.1.1

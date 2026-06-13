@@ -3,7 +3,7 @@ use std::pin::Pin;
 use reqwest::Client;
 
 use crate::core::{
-    domain::DispatchError, domain::integration::IntegrationConfig,
+    domain::{DispatchError, IntegrationConfig, NotificationContent},
     ports::notification_dispatcher::NotificationDispatcher,
 };
 
@@ -22,7 +22,7 @@ impl NotificationDispatcher for NtfyDispatcher {
     fn dispatch(
         &self,
         config: &IntegrationConfig,
-        message: &str,
+        notification: &NotificationContent,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<(), DispatchError>> + Send>> {
         let client = self.client.clone();
         let ntfy = match config {
@@ -33,16 +33,18 @@ impl NotificationDispatcher for NtfyDispatcher {
                 });
             }
         };
-        let msg = message.to_string();
+        let title = notification.title.clone();
+        let body = notification.body.clone();
+        let priority = ntfy.priority.to_string();
 
         Box::pin(async move {
             let url = format!("{}/{}", ntfy.url.trim_end_matches('/'), ntfy.topic);
 
             let resp = client
                 .post(&url)
-                .header("Title", "Shikigami Alert")
-                .header("Priority", ntfy.priority.to_string())
-                .body(msg)
+                .header("Title", &title)
+                .header("Priority", &priority)
+                .body(body)
                 .send()
                 .await
                 .map_err(|e| DispatchError::Transient(format!("ntfy request failed: {e}")))?;

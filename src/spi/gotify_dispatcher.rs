@@ -3,7 +3,7 @@ use std::pin::Pin;
 use reqwest::Client;
 
 use crate::core::{
-    domain::DispatchError, domain::integration::IntegrationConfig,
+    domain::{DispatchError, IntegrationConfig, NotificationContent},
     ports::notification_dispatcher::NotificationDispatcher,
 };
 
@@ -22,7 +22,7 @@ impl NotificationDispatcher for GotifyDispatcher {
     fn dispatch(
         &self,
         config: &IntegrationConfig,
-        message: &str,
+        notification: &NotificationContent,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<(), DispatchError>> + Send>> {
         let client = self.client.clone();
         let gotify = match config {
@@ -33,7 +33,8 @@ impl NotificationDispatcher for GotifyDispatcher {
                 });
             }
         };
-        let msg = message.to_string();
+        let title = notification.title.clone();
+        let body = notification.body.clone();
 
         Box::pin(async move {
             let url = format!(
@@ -42,15 +43,15 @@ impl NotificationDispatcher for GotifyDispatcher {
                 gotify.token
             );
 
-            let body = serde_json::json!({
-                "title": "Shikigami Alert",
-                "message": msg,
+            let payload = serde_json::json!({
+                "title": title,
+                "message": body,
                 "priority": gotify.priority,
             });
 
             let resp = client
                 .post(&url)
-                .json(&body)
+                .json(&payload)
                 .send()
                 .await
                 .map_err(|e| DispatchError::Transient(format!("gotify request failed: {e}")))?;

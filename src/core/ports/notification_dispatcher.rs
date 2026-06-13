@@ -1,15 +1,14 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::core::domain::DispatchError;
-use crate::core::domain::IntegrationConfig;
+use crate::core::domain::{DispatchError, IntegrationConfig, NotificationContent};
 
 #[derive(Debug, Clone)]
 pub struct OutboxEntry {
     pub id: String,
     pub monitor_id: String,
     pub integration_id: String,
-    pub message: String,
+    pub notification: NotificationContent,
     pub retry_count: i32,
 }
 
@@ -34,6 +33,6 @@ pub trait NotificationDispatcher: Send + Sync + 'static {
     fn dispatch(
         &self,
         config: &IntegrationConfig,
-        message: &str,
+        notification: &NotificationContent,
     ) -> Pin<Box<dyn Future<Output = Result<(), DispatchError>> + Send>>;
 }

@@ -68,10 +68,19 @@ async fn insert_outbox(pool: &SqlitePool, status: &str) -> (String, String, Stri
     let mon_id = insert_monitor(pool).await;
     let int_id = insert_integration(pool).await;
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, 'test', 0, ?, datetime('now'))")
+    let notification_json = serde_json::json!({
+        "title": "test",
+        "body": "test",
+        "monitor_name": "test",
+        "monitor_slug": "test",
+        "last_seen_at": null
+    })
+    .to_string();
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, ?, 0, ?, datetime('now'))")
         .bind(&entry_id)
         .bind(&mon_id)
         .bind(&int_id)
+        .bind(&notification_json)
         .bind(status)
         .execute(pool).await.expect("insert outbox");
     (entry_id, mon_id, int_id)
@@ -169,8 +178,10 @@ async fn notification_service_handles_missing_integration() {
         .execute(&pool)
         .await
         .expect("pragma failed");
-    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, 'test', 0, 'pending', datetime('now'))")
-        .bind(&entry_id).bind(&mon_id).bind(&fake_int_id).execute(&pool).await.expect("insert");
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'))")
+        .bind(&entry_id).bind(&mon_id).bind(&fake_int_id)
+        .bind(serde_json::json!({"title":"test","body":"test","monitor_name":"test","monitor_slug":"test","last_seen_at":null}).to_string())
+        .execute(&pool).await.expect("insert");
     sqlx::query("PRAGMA foreign_keys = ON")
         .execute(&pool)
         .await
@@ -215,8 +226,10 @@ async fn notification_service_transient_retries() {
     let int_id = integration.id.as_uuid().to_string();
     let mon_id = insert_monitor(&pool).await;
     let entry_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, 'alert', 0, 'pending', datetime('now'))")
-        .bind(&entry_id).bind(&mon_id).bind(&int_id).execute(&pool).await.unwrap();
+    sqlx::query("INSERT INTO notification_outbox (id, monitor_id, integration_id, message, retry_count, status, created_at) VALUES (?, ?, ?, ?, 0, 'pending', datetime('now'))")
+        .bind(&entry_id).bind(&mon_id).bind(&int_id)
+        .bind(serde_json::json!({"title":"test","body":"test","monitor_name":"test","monitor_slug":"test","last_seen_at":null}).to_string())
+        .execute(&pool).await.unwrap();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(50))
         .build()

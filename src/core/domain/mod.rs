@@ -1,6 +1,7 @@
 pub mod dispatch;
 pub mod integration;
 pub mod monitor;
+pub mod notification_content;
 
 pub use dispatch::DispatchError;
 pub use integration::{
@@ -10,3 +11,4 @@ pub use integration::{
 pub use monitor::{
     CheckInOutcome, Monitor, MonitorError, MonitorId, MonitorStatus, NewMonitor, ScheduleType,
 };
+pub use notification_content::NotificationContent;

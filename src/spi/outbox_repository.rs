@@ -1,6 +1,9 @@
 use sqlx::{FromRow, SqlitePool};
 
-use crate::core::ports::notification_dispatcher::{OutboxEntry, OutboxRepository};
+use crate::core::{
+    domain::NotificationContent,
+    ports::notification_dispatcher::{OutboxEntry, OutboxRepository},
+};
 
 #[derive(FromRow)]
 struct OutboxRow {
@@ -37,12 +40,25 @@ impl OutboxRepository for SqliteOutboxRepository {
 
         Ok(rows
             .into_iter()
-            .map(|r| OutboxEntry {
-                id: r.id,
-                monitor_id: r.monitor_id,
-                integration_id: r.integration_id,
-                message: r.message,
-                retry_count: r.retry_count,
+            .filter_map(|r| {
+                let notification = match serde_json::from_str::<NotificationContent>(&r.message) {
+                    Ok(n) => n,
+                    Err(e) => {
+                        tracing::warn!(
+                            entry_id = %r.id,
+                            error = %e,
+                            "failed to deserialize notification content, skipping"
+                        );
+                        return None;
+                    }
+                };
+                Some(OutboxEntry {
+                    id: r.id,
+                    monitor_id: r.monitor_id,
+                    integration_id: r.integration_id,
+                    notification,
+                    retry_count: r.retry_count,
+                })
             })
             .collect())
     }

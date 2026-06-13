@@ -1,5 +1,5 @@
 use crate::core::domain::{
-    Integration, Monitor,
+    Integration, Monitor, NotificationContent,
     integration::IntegrationId,
     monitor::{
         CheckInOutcome, MonitorError, MonitorId, MonitorStatus, NewMonitor, StatusReportEntry,
@@ -72,6 +72,7 @@ pub trait MonitorRepository: Send + Sync + 'static {
         timestamp: chrono::DateTime<chrono::Utc>,
         next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
         new_status: MonitorStatus,
+        notification: Option<NotificationContent>,
     ) -> impl Future<Output = Result<(), MonitorError>> + Send;
 
     fn status_report(

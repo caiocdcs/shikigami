@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 use crate::core::{
-    domain::{DispatchError, IntegrationConfig, IntegrationId},
+    domain::{DispatchError, IntegrationConfig, IntegrationId, NotificationContent},
     ports::{IntegrationRepository, NotificationDispatcher, OutboxRepository},
 };
 
@@ -29,12 +29,12 @@ impl DispatcherMap {
     async fn dispatch(
         &self,
         config: &IntegrationConfig,
-        message: &str,
+        notification: &NotificationContent,
     ) -> Result<(), DispatchError> {
         match config {
-            IntegrationConfig::Ntfy(_) => self.ntfy.dispatch(config, message).await,
-            IntegrationConfig::Gotify(_) => self.gotify.dispatch(config, message).await,
-            IntegrationConfig::Slack(_) => self.slack.dispatch(config, message).await,
+            IntegrationConfig::Ntfy(_) => self.ntfy.dispatch(config, notification).await,
+            IntegrationConfig::Gotify(_) => self.gotify.dispatch(config, notification).await,
+            IntegrationConfig::Slack(_) => self.slack.dispatch(config, notification).await,
             IntegrationConfig::Email(_) => Err(DispatchError::Permanent(
                 "email dispatch not yet implemented".to_string(),
             )),
@@ -139,7 +139,7 @@ where
 
             match self
                 .dispatchers
-                .dispatch(&integration.config, &entry.message)
+                .dispatch(&integration.config, &entry.notification)
                 .await
             {
                 Ok(()) => {
