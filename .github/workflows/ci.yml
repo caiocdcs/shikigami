@@ -38,3 +38,14 @@ jobs:
 
       - name: Audit
         run: cargo audit
+
+      - name: Install sqlx-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: sqlx-cli
+
+      - name: Sqlx offline metadata check
+        run: |
+          sqlx database create --database-url sqlite:ci.db?mode=rwc
+          sqlx migrate run --database-url sqlite:ci.db?mode=rwc
+          cargo sqlx prepare --check --database-url sqlite:ci.db?mode=rwc

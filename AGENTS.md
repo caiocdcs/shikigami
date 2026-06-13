@@ -6,7 +6,7 @@ Self-hosted heartbeat/cron monitor. Single binary, SQLite-backed, notifications 
 
 ## Before Finishing
 
-Run `just fmt && just lint && just test`. All must pass. No exceptions.
+Run `just fmt && just lint && just test && just sqlx-prepare`. All must pass. No exceptions.
 
 ## Navigation
 
