@@ -5,7 +5,7 @@ use crate::core::{
         CheckInOutcome, Integration, IntegrationId, Monitor, MonitorError, MonitorId,
         MonitorStatus, NewMonitor, NotificationContent, ScheduleType, monitor::StatusReport,
     },
-    ports::{CheckIn, MonitorRepository},
+    ports::monitor_repository::{CheckInsResult, MonitorRepository},
 };
 
 #[derive(Debug, Clone)]
@@ -148,8 +148,9 @@ impl<R: MonitorRepository> MonitorService<R> {
         &self,
         monitor_id: MonitorId,
         limit: i64,
-    ) -> Result<Vec<CheckIn>, MonitorError> {
-        self.repo.get_check_ins(monitor_id, limit).await
+        offset: i64,
+    ) -> Result<CheckInsResult, MonitorError> {
+        self.repo.get_check_ins(monitor_id, limit, offset).await
     }
     pub async fn find_missed_monitors(&self) -> Result<Vec<MonitorId>, MonitorError> {
         self.repo.find_missed_monitors().await

@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - `NotificationContent` domain struct: notification messages now carry monitor name,
   slug, and last-seen time instead of raw UUIDs. Each dispatcher (ntfy, gotify, slack)
   uses the title and body fields appropriate to its channel.
+- Paginated check-ins endpoint: `GET /monitors/{id}/check-ins?limit=20&offset=0`.
+  Returns `CheckInsPage` with `items`, `total`, `limit`, `offset`. Default limit=20, max 100.
 
 ### Changed
 
@@ -29,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
   hardcoded "Shikigami Alert".
 - slack dispatcher: message heading uses `notification.title` instead of
   hardcoded "Shikigami Alert".
+- Status UI monitor detail page reduced to 10 check-ins (was 20).
 
 ## [0.3.0] - 2026-06-11
 

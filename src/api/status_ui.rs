@@ -169,7 +169,7 @@ pub async fn monitor_detail(
 
     let check_ins = state
         .monitor_service
-        .get_check_ins(monitor.id.clone(), 20)
+        .get_check_ins(monitor.id.clone(), 10, 0)
         .await?;
 
     let integrations = state
@@ -221,6 +221,7 @@ pub async fn monitor_detail(
         next_expected_absolute,
         integrations,
         check_ins: check_ins
+            .check_ins
             .into_iter()
             .map(|c| CheckInView {
                 checked_in_at: c.checked_in_at.to_rfc3339(),

@@ -1,15 +1,16 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
 };
 use axum_validated_extractors::ValidatedJson;
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
     AppState,
     api::dtos::{
-        CheckInResponse, CreateMonitorDto, IntegrationResponse, LinkIntegrationDto,
+        CheckInResponse, CheckInsPage, CreateMonitorDto, IntegrationResponse, LinkIntegrationDto,
         MonitorResponse, UpdateMonitorDto,
     },
     core::domain::{
@@ -17,6 +18,12 @@ use crate::{
     },
     error::{AppError, AppResult},
 };
+
+#[derive(Debug, Deserialize)]
+pub struct CheckInsQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
 
 #[axum::debug_handler]
 pub async fn create_monitor(
@@ -182,13 +189,17 @@ pub async fn get_monitor_integrations(
 pub async fn get_monitor_check_ins(
     State(state): State<AppState>,
     Path(monitor_id): Path<Uuid>,
-) -> AppResult<Json<Vec<CheckInResponse>>> {
-    let check_ins = state
+    Query(params): Query<CheckInsQuery>,
+) -> AppResult<Json<CheckInsPage>> {
+    let limit = params.limit.unwrap_or(20).clamp(1, 100);
+    let offset = params.offset.unwrap_or(0).max(0);
+    let page = state
         .monitor_service
-        .get_check_ins(MonitorId::from_uuid(monitor_id), 50)
+        .get_check_ins(MonitorId::from_uuid(monitor_id), limit, offset)
         .await?;
-    Ok(Json(
-        check_ins
+    Ok(Json(CheckInsPage {
+        items: page
+            .check_ins
             .into_iter()
             .map(|c| CheckInResponse {
                 id: c.id,
@@ -198,7 +209,10 @@ pub async fn get_monitor_check_ins(
                 comments: c.comments,
             })
             .collect(),
-    ))
+        total: page.total,
+        limit,
+        offset,
+    }))
 }
 
 #[axum::debug_handler]

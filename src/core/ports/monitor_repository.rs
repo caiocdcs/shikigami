@@ -14,6 +14,11 @@ pub struct CheckIn {
     pub comments: Option<String>,
 }
 
+pub struct CheckInsResult {
+    pub check_ins: Vec<CheckIn>,
+    pub total: i64,
+}
+
 pub trait MonitorRepository: Send + Sync + 'static {
     fn get_monitors(&self) -> impl Future<Output = Result<Vec<Monitor>, MonitorError>> + Send;
     fn get_monitor(
@@ -55,7 +60,8 @@ pub trait MonitorRepository: Send + Sync + 'static {
         &self,
         monitor_id: MonitorId,
         limit: i64,
-    ) -> impl Future<Output = Result<Vec<CheckIn>, MonitorError>> + Send;
+        offset: i64,
+    ) -> impl Future<Output = Result<CheckInsResult, MonitorError>> + Send;
     fn find_missed_monitors(
         &self,
     ) -> impl Future<Output = Result<Vec<MonitorId>, MonitorError>> + Send;

@@ -6,7 +6,7 @@ use crate::core::{
         integration::{IntegrationChannel, IntegrationConfig, IntegrationId, IntegrationStatus},
         monitor::{MonitorId, MonitorStatus, NewMonitor, ScheduleType, StatusReportEntry},
     },
-    ports::monitor_repository::{CheckIn, MonitorRepository},
+    ports::monitor_repository::{CheckIn, CheckInsResult, MonitorRepository},
 };
 
 #[derive(FromRow)]
@@ -366,18 +366,26 @@ impl MonitorRepository for SqliteMonitorRepository {
         &self,
         monitor_id: MonitorId,
         limit: i64,
-    ) -> Result<Vec<CheckIn>, MonitorError> {
+        offset: i64,
+    ) -> Result<CheckInsResult, MonitorError> {
         let monitor_id_str = monitor_id.as_uuid().to_string();
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+            .bind(&monitor_id_str)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(MonitorError::map_sqlx_error)?;
         let rows = sqlx::query_as!(
             CheckInRow,
-            r#"SELECT id as "id!", monitor_id as "monitor_id!", checked_in_at as "checked_in_at!", outcome as "outcome!", comments FROM check_ins WHERE monitor_id = ? ORDER BY checked_in_at DESC LIMIT ?"#,
+            r#"SELECT id as "id!", monitor_id as "monitor_id!", checked_in_at as "checked_in_at!", outcome as "outcome!", comments FROM check_ins WHERE monitor_id = ? ORDER BY checked_in_at DESC LIMIT ? OFFSET ?"#,
             monitor_id_str,
-            limit
+            limit,
+            offset
         )
         .fetch_all(&self.pool)
         .await?;
 
-        rows.into_iter()
+        let items = rows
+            .into_iter()
             .map(|row| {
                 let naive =
                     chrono::NaiveDateTime::parse_from_str(&row.checked_in_at, "%Y-%m-%d %H:%M:%S")?;
@@ -389,7 +397,12 @@ impl MonitorRepository for SqliteMonitorRepository {
                     comments: row.comments,
                 })
             })
-            .collect()
+            .collect::<Result<Vec<CheckIn>, MonitorError>>()?;
+
+        Ok(CheckInsResult {
+            check_ins: items,
+            total,
+        })
     }
 
     async fn find_missed_monitors(&self) -> Result<Vec<MonitorId>, MonitorError> {
