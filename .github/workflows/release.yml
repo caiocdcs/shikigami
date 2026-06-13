@@ -52,6 +52,11 @@ jobs:
     permissions:
       contents: write
 
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG_NAME: ${{ github.ref_name }}
+      REPO: ${{ github.repository }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -61,24 +66,18 @@ jobs:
           merge-multiple: true
 
       - name: Extract changelog
-        id: changelog
         run: |
-          version=${{ github.ref_name }}
-          # Extract the section for this version from CHANGELOG.md
-          # Pattern: ## [0.4.0] ... up to the next ## heading
-          body=$(awk \
-            -v ver="${version#v}" \
-            '/^## \['"${ver}"'\]/{found=1; next} /^## \[/{found=0} found' \
-            CHANGELOG.md)
-          # Save to file for gh release (avoids multiline string issues)
-          echo "$body" > RELEASE_BODY.md
+          ver="${TAG_NAME#v}"
+          # Extract version section from CHANGELOG.md (## [0.4.1] ... up to next ##)
+          awk -v ver="$ver" '
+            /^## \[/{ section=$0; gsub(/^## \[|\].*/, "", section); found=(section==ver); next }
+            found
+          ' CHANGELOG.md > RELEASE_BODY.md
 
       - name: Release
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ${{ github.ref_name }} *.tar.gz *.tar.gz.sha256 install.sh \
-            --repo ${{ github.repository }} \
-            --title ${{ github.ref_name }} \
+          gh release create "$TAG_NAME" *.tar.gz *.tar.gz.sha256 install.sh \
+            --repo "$REPO" \
+            --title "$TAG_NAME" \
             --notes-file RELEASE_BODY.md \
             --verify-tag

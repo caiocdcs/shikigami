@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-13
+
+### Fixed
+
+- Sqlx offline metadata regenerated for paginated check-ins query
+- Release workflow: use CHANGELOG.md content instead of auto-generated notes
+- Release workflow: use env vars instead of template expressions to prevent
+  shell injection via crafted tag names
+
 ## [0.4.0] - 2026-06-13
 
 ### Added
@@ -96,7 +105,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Notification dispatch (ntfy, gotify, slack)
 - SQLite with foreign key enforcement
 
-[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/caiocdcs/shikigami/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/caiocdcs/shikigami/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/caiocdcs/shikigami/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/caiocdcs/shikigami/compare/v0.1.1...v0.2.0
