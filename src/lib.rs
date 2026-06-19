@@ -62,12 +62,12 @@ impl AppState {
     }
 }
 
-pub async fn create_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
+pub async fn create_pool(config: &Config) -> anyhow::Result<SqlitePool> {
     let pool = SqlitePoolOptions::new()
-        .max_connections(10)
-        .min_connections(2)
-        .acquire_timeout(Duration::from_secs(3))
-        .idle_timeout(Duration::from_secs(600))
+        .max_connections(config.pool_max_connections)
+        .min_connections(config.pool_min_connections)
+        .acquire_timeout(Duration::from_secs(config.pool_acquire_timeout_seconds))
+        .idle_timeout(Duration::from_secs(config.pool_idle_timeout_seconds))
         .after_connect(|conn, _meta| {
             Box::pin(async {
                 sqlx::query("PRAGMA foreign_keys = ON")
@@ -76,7 +76,7 @@ pub async fn create_pool(database_url: &str) -> anyhow::Result<SqlitePool> {
                 Ok(())
             })
         })
-        .connect(database_url)
+        .connect(config.database_url.expose_secret())
         .await
         .context("failed to connect to the database")?;
 
@@ -87,11 +87,12 @@ pub async fn create_app(
     config: Config,
     shutdown_token: CancellationToken,
 ) -> anyhow::Result<Router> {
-    let pool = create_pool(config.database_url.expose_secret()).await?;
+    let pool = create_pool(&config).await?;
     create_app_with_pool(pool, config, shutdown_token).await
 }
 
 pub fn build_notification_service(
+    config: &Config,
     pool: Pool<Sqlite>,
 ) -> NotificationService<SqliteIntegrationRepository, SqliteOutboxRepository> {
     let integration_repo = SqliteIntegrationRepository::new(pool.clone());
@@ -106,7 +107,8 @@ pub fn build_notification_service(
         outbox_repo,
         integration_repo,
         dispatchers,
-        Duration::from_secs(30),
+        Duration::from_secs(config.notification_interval_seconds),
+        config.notification_max_retries,
     )
 }
 
@@ -119,7 +121,7 @@ pub async fn create_app_with_pool(
         .run(&pool)
         .await
         .context("failed to run database migrations")?;
-    let state = AppState::new(config, pool.clone());
+    let state = AppState::new(config.clone(), pool.clone());
 
     if state.config.api_key.is_none() {
         tracing::warn!(
@@ -128,7 +130,7 @@ pub async fn create_app_with_pool(
     }
 
     // Build and spawn the notification worker
-    let notification_service = build_notification_service(pool.clone());
+    let notification_service = build_notification_service(&config, pool.clone());
     let worker_token = shutdown_token.child_token();
     tokio::spawn(async move {
         notification_service.run(worker_token).await;
@@ -137,7 +139,10 @@ pub async fn create_app_with_pool(
     // Build and spawn the missed-monitor checker
     let checker_repo = SqliteMonitorRepository::new(pool.clone());
     let checker_service = MonitorService::new(checker_repo);
-    let checker = MonitorChecker::new(checker_service, Duration::from_secs(60));
+    let checker = MonitorChecker::new(
+        checker_service,
+        Duration::from_secs(config.checker_interval_seconds),
+    );
     let checker_token = shutdown_token.child_token();
     tokio::spawn(async move {
         checker.run(checker_token).await;
@@ -147,8 +152,8 @@ pub async fn create_app_with_pool(
     let retention_repo = SqliteMonitorRepository::new(pool.clone());
     let retention = RetentionChecker::new(
         retention_repo,
-        Duration::from_secs(state.config.retention_interval_seconds),
-        state.config.retention_days,
+        Duration::from_secs(config.retention_interval_seconds),
+        config.retention_days,
     );
     let retention_token = shutdown_token.child_token();
     tokio::spawn(async move {

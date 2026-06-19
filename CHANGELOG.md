@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Check-in retention worker: prunes `check_ins` rows older than `RETENTION_DAYS`
   (default 30) every `RETENTION_INTERVAL_SECONDS` (default 3600). Bounds SQLite
   growth for long-running homelab instances. Set `RETENTION_DAYS=0` to disable.
+- Operational tuning via env vars: `POOL_MAX_CONNECTIONS`, `POOL_MIN_CONNECTIONS`,
+  `POOL_ACQUIRE_TIMEOUT_SECONDS`, `POOL_IDLE_TIMEOUT_SECONDS`,
+  `NOTIFICATION_INTERVAL_SECONDS`, `NOTIFICATION_MAX_RETRIES`,
+  `CHECKER_INTERVAL_SECONDS`. Defaults match prior hardcoded values.
 
 ### Changed
 

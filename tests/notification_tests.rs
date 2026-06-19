@@ -194,7 +194,7 @@ async fn notification_service_handles_missing_integration() {
         SlackDispatcher::new(client),
     );
     let outbox_repo = SqliteOutboxRepository::new(pool.clone());
-    let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll());
+    let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll(), 3);
     service.run_once().await;
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
@@ -241,7 +241,7 @@ async fn notification_service_transient_retries() {
         SlackDispatcher::new(client),
     );
     let outbox_repo = SqliteOutboxRepository::new(pool.clone());
-    let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll());
+    let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll(), 3);
     service.run_once().await;
     let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
         .bind(&entry_id)
@@ -268,7 +268,7 @@ async fn notification_worker_responds_to_cancellation() {
         GotifyDispatcher::new(client.clone()),
         SlackDispatcher::new(client),
     );
-    let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll());
+    let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll(), 3);
     let token = CancellationToken::new();
     let child = token.child_token();
     let handle = tokio::spawn(async move {

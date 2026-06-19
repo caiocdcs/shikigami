@@ -60,12 +60,13 @@ where
         integration_repo: IR,
         dispatchers: DispatcherMap,
         poll_interval: Duration,
+        max_retries: u32,
     ) -> Self {
         Self {
             outbox_repo,
             integration_repo,
             dispatchers,
-            max_retries: 3,
+            max_retries,
             poll_interval,
         }
     }
