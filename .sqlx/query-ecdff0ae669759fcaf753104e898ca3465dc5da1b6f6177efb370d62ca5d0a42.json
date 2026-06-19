@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!\", monitor_id as \"monitor_id!\", checked_in_at as \"checked_in_at!\", outcome as \"outcome!\", comments FROM check_ins WHERE monitor_id = ? ORDER BY checked_in_at DESC LIMIT ? OFFSET ?",
+  "query": "SELECT id as \"id!\", monitor_id as \"monitor_id!\", checked_in_at as \"checked_in_at!\", outcome as \"outcome!\", message FROM check_ins WHERE monitor_id = ? ORDER BY checked_in_at DESC LIMIT ? OFFSET ?",
   "describe": {
     "columns": [
       {
@@ -24,7 +24,7 @@
         "type_info": "Text"
       },
       {
-        "name": "comments",
+        "name": "message",
         "ordinal": 4,
         "type_info": "Text"
       }
@@ -40,5 +40,5 @@
       true
     ]
   },
-  "hash": "748d051604d02f85490fbf56b8127122962fcf03422b4190474b4dcfcd5ebe50"
+  "hash": "ecdff0ae669759fcaf753104e898ca3465dc5da1b6f6177efb370d62ca5d0a42"
 }

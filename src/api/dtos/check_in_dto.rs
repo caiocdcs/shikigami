@@ -6,7 +6,7 @@ pub struct CheckInResponse {
     pub monitor_id: String,
     pub checked_in_at: String,
     pub outcome: String,
-    pub comments: Option<String>,
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

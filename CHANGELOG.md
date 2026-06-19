@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+### Added
+
+- Ingress endpoints (`/ping`, `/success`, `/failure`) accept an optional raw-text body
+  stored as the check-in `message`. For failures it is added to the notification body
+  as `Reason: <message>` (truncated to 256 chars). 16 KiB body cap on ingress routes
+  (413 on overflow).
+
+### Changed
+
+- `check_ins.comments` column renamed to `message` (migration
+  `20260619120000_rename_check_ins_comments_to_message`). Breaking; runs on startup.
+- `CheckInResponse.comments` JSON field renamed to `message`.
+
 ## [0.4.1] - 2026-06-13
 
 ### Fixed

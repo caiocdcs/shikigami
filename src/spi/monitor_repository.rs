@@ -2,11 +2,12 @@ use sqlx::{FromRow, SqlitePool};
 
 use crate::core::{
     domain::{
-        CheckInOutcome, Integration, Monitor, MonitorError, NotificationContent,
+        CheckIn, CheckInOutcome, CheckInsResult, Integration, Monitor, MonitorError,
+        NotificationContent,
         integration::{IntegrationChannel, IntegrationConfig, IntegrationId, IntegrationStatus},
         monitor::{MonitorId, MonitorStatus, NewMonitor, ScheduleType, StatusReportEntry},
     },
-    ports::monitor_repository::{CheckIn, CheckInsResult, MonitorRepository},
+    ports::MonitorRepository,
 };
 
 #[derive(FromRow)]
@@ -126,7 +127,7 @@ struct CheckInRow {
     monitor_id: String,
     checked_in_at: String,
     outcome: String,
-    comments: Option<String>,
+    message: Option<String>,
 }
 
 #[derive(FromRow)]
@@ -376,7 +377,7 @@ impl MonitorRepository for SqliteMonitorRepository {
             .map_err(MonitorError::map_sqlx_error)?;
         let rows = sqlx::query_as!(
             CheckInRow,
-            r#"SELECT id as "id!", monitor_id as "monitor_id!", checked_in_at as "checked_in_at!", outcome as "outcome!", comments FROM check_ins WHERE monitor_id = ? ORDER BY checked_in_at DESC LIMIT ? OFFSET ?"#,
+            r#"SELECT id as "id!", monitor_id as "monitor_id!", checked_in_at as "checked_in_at!", outcome as "outcome!", message FROM check_ins WHERE monitor_id = ? ORDER BY checked_in_at DESC LIMIT ? OFFSET ?"#,
             monitor_id_str,
             limit,
             offset
@@ -394,7 +395,7 @@ impl MonitorRepository for SqliteMonitorRepository {
                     monitor_id: row.monitor_id,
                     checked_in_at: chrono::DateTime::from_naive_utc_and_offset(naive, chrono::Utc),
                     outcome: CheckInOutcome::try_from(row.outcome.as_str())?,
-                    comments: row.comments,
+                    message: row.message,
                 })
             })
             .collect::<Result<Vec<CheckIn>, MonitorError>>()?;
@@ -454,6 +455,7 @@ impl MonitorRepository for SqliteMonitorRepository {
         timestamp: chrono::DateTime<chrono::Utc>,
         next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
         new_status: MonitorStatus,
+        message: Option<String>,
         notification: Option<NotificationContent>,
     ) -> Result<(), MonitorError> {
         let monitor_id_str = monitor_id.as_uuid().to_string();
@@ -466,11 +468,12 @@ impl MonitorRepository for SqliteMonitorRepository {
         // Insert check_in record
         let check_in_id = uuid::Uuid::new_v4().to_string();
         sqlx::query!(
-            r#"INSERT INTO check_ins (id, monitor_id, checked_in_at, outcome, comments) VALUES (?, ?, ?, ?, NULL)"#,
+            r#"INSERT INTO check_ins (id, monitor_id, checked_in_at, outcome, message) VALUES (?, ?, ?, ?, ?)"#,
             check_in_id,
             monitor_id_str,
             now_str,
-            outcome_str
+            outcome_str,
+            message
         )
         .execute(&self.pool)
         .await

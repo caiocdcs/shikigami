@@ -1,23 +1,10 @@
 use crate::core::domain::{
-    Integration, Monitor, NotificationContent,
+    CheckInsResult, Integration, Monitor, NotificationContent,
     integration::IntegrationId,
     monitor::{
         CheckInOutcome, MonitorError, MonitorId, MonitorStatus, NewMonitor, StatusReportEntry,
     },
 };
-
-pub struct CheckIn {
-    pub id: String,
-    pub monitor_id: String,
-    pub checked_in_at: chrono::DateTime<chrono::Utc>,
-    pub outcome: CheckInOutcome,
-    pub comments: Option<String>,
-}
-
-pub struct CheckInsResult {
-    pub check_ins: Vec<CheckIn>,
-    pub total: i64,
-}
 
 pub trait MonitorRepository: Send + Sync + 'static {
     fn get_monitors(&self) -> impl Future<Output = Result<Vec<Monitor>, MonitorError>> + Send;
@@ -78,6 +65,7 @@ pub trait MonitorRepository: Send + Sync + 'static {
         timestamp: chrono::DateTime<chrono::Utc>,
         next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
         new_status: MonitorStatus,
+        message: Option<String>,
         notification: Option<NotificationContent>,
     ) -> impl Future<Output = Result<(), MonitorError>> + Send;
 

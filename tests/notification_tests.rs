@@ -372,3 +372,46 @@ async fn monitor_checker_run_once_creates_check_in_and_outbox() {
         "outbox entry created via check_in failure path"
     );
 }
+
+#[tokio::test]
+async fn check_in_failure_folds_message_into_notification_body() {
+    // The failure message must reach the notification: NotificationContent::for_failure
+    // appends a `Reason: <message>` excerpt to `body`, and the outbox stores the
+    // serialized NotificationContent in its `message` column. A dispatcher never
+    // sees the check-in message directly; it only renders `notification.body`.
+    let pool = pool_with_migrations().await;
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let int_id = insert_integration(&pool).await;
+    let mon_id = insert_monitor(&pool).await;
+    sqlx::query("INSERT INTO monitor_integrations (monitor_id, integration_id) VALUES (?, ?)")
+        .bind(&mon_id)
+        .bind(&int_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let service = MonitorService::new(repo);
+    let mon_id_struct =
+        shikigami::core::domain::MonitorId::from_uuid(mon_id.parse::<uuid::Uuid>().unwrap());
+    service
+        .check_in(
+            mon_id_struct,
+            shikigami::core::domain::CheckInOutcome::Failure,
+            Some("exit 1: disk full".to_string()),
+        )
+        .await
+        .unwrap();
+
+    let body: String =
+        sqlx::query_scalar("SELECT message FROM notification_outbox WHERE monitor_id = ?")
+            .bind(&mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let content: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let notification_body = content["body"].as_str().unwrap();
+    assert!(
+        notification_body.contains("Reason: exit 1: disk full"),
+        "notification body should contain the reason, got: {notification_body}"
+    );
+}

@@ -35,104 +35,6 @@ async fn response_json(response: axum::http::Response<Body>) -> serde_json::Valu
     serde_json::from_slice(&body).expect("failed to parse json")
 }
 
-async fn create_test_monitor(app: axum::Router) -> String {
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/monitors")
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&serde_json::json!({
-                        "name": "test-monitor",
-                        "slug": "test-monitor",
-                        "schedule_type": "interval",
-                        "interval_seconds": 60,
-                        "grace_seconds": 10
-                    }))
-                    .expect("json"),
-                ))
-                .expect("request"),
-        )
-        .await
-        .expect("response");
-    let body = response_json(response).await;
-    body["id"].as_str().expect("id").to_string()
-}
-
-async fn create_test_cron_monitor(app: axum::Router) -> String {
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/monitors")
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&serde_json::json!({
-                        "name": "test-cron",
-                        "slug": "test-cron",
-                        "schedule_type": "cron",
-                        "cron_expr": "0 * * * *",
-                        "grace_seconds": 300
-                    }))
-                    .expect("json"),
-                ))
-                .expect("request"),
-        )
-        .await
-        .expect("response");
-    let body = response_json(response).await;
-    body["id"].as_str().expect("id").to_string()
-}
-
-async fn create_test_integration(app: axum::Router) -> String {
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/integrations")
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&serde_json::json!({
-                        "name": "test-ntfy",
-                        "channel": "ntfy",
-                        "config": {
-                            "url": "https://ntfy.sh",
-                            "topic": "alerts",
-                            "priority": 4,
-                            "message": "down"
-                        }
-                    }))
-                    .expect("json"),
-                ))
-                .expect("request"),
-        )
-        .await
-        .expect("response");
-    let body = response_json(response).await;
-    body["id"].as_str().expect("id").to_string()
-}
-
-async fn link_monitor_integration(app: axum::Router, monitor_id: &str, integration_id: &str) {
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(&format!("/monitors/{monitor_id}/integrations"))
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&serde_json::json!({
-                        "integration_id": integration_id
-                    }))
-                    .expect("json"),
-                ))
-                .expect("request"),
-        )
-        .await
-        .expect("response");
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
-}
-
 #[tokio::test]
 async fn create_integration_returns_201() {
     let app = test_app().await;
@@ -1935,4 +1837,236 @@ async fn monitor_detail_unknown_slug_returns_404() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+// --- Failure context with message (Tier 2 feature) ---
+//
+// Ingress endpoints accept an optional raw-text body that becomes the
+// check-in `message`. For failures it is also folded into the notification.
+// Empty body -> None (backward compatible). Oversize -> 413. Non-UTF-8 -> 400.
+
+#[tokio::test]
+async fn failure_with_message_stores_message_and_marks_missed() {
+    let (app, pool) = test_app_with_pool().await;
+    let mon_id = create_monitor_with_slug(app.clone(), "failure-msg").await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/failure/{mon_id}"))
+                .header("Content-Type", "text/plain")
+                .body(Body::from("exit 1: disk full"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // Stored verbatim on the check-in row.
+    let stored: Option<String> =
+        sqlx::query_scalar("SELECT message FROM check_ins WHERE monitor_id = ?")
+            .bind(&mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(stored.as_deref(), Some("exit 1: disk full"));
+
+    // Failure flips the monitor to missed.
+    let status: String = sqlx::query_scalar("SELECT status FROM monitors WHERE id = ?")
+        .bind(&mon_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(status, "missed");
+}
+
+#[tokio::test]
+async fn failure_without_body_stores_null_message() {
+    let (app, pool) = test_app_with_pool().await;
+    let mon_id = create_monitor_with_slug(app.clone(), "failure-nobody").await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/failure/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // A check-in row exists ...
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+        .bind(&mon_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 1, "failure check-in should exist");
+
+    // ... but its message column is NULL. `query_scalar` on a NULL column yields
+    // `None` (not `Some(None)`), so we read the raw value and assert nullness.
+    let stored: Option<String> =
+        sqlx::query_scalar("SELECT message FROM check_ins WHERE monitor_id = ?")
+            .bind(&mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(stored.is_none(), "message must be NULL for bodyless ping");
+}
+
+#[tokio::test]
+async fn failure_oversize_body_returns_413() {
+    let app = test_app().await;
+    let mon_id = create_monitor_with_slug(app.clone(), "failure-oversize").await;
+
+    // 17 KiB: one byte over the 16 KiB ingress limit.
+    let oversized = "x".repeat(17 * 1024);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/failure/{mon_id}"))
+                .header("Content-Type", "text/plain")
+                .body(Body::from(oversized))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn failure_non_utf8_body_returns_400() {
+    let app = test_app().await;
+    let mon_id = create_monitor_with_slug(app.clone(), "failure-nonutf8").await;
+
+    // Invalid UTF-8 sequence (lone continuation byte). axum's `String` extractor
+    // rejects this before the handler runs.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/failure/{mon_id}"))
+                .header("Content-Type", "text/plain")
+                .body(Body::from([0x80u8].to_vec()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn success_with_message_stores_message() {
+    let (app, pool) = test_app_with_pool().await;
+    let mon_id = create_monitor_with_slug(app.clone(), "success-msg").await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/success/{mon_id}"))
+                .header("Content-Type", "text/plain")
+                .body(Body::from("ran in 42s"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let stored: Option<String> =
+        sqlx::query_scalar("SELECT message FROM check_ins WHERE monitor_id = ?")
+            .bind(&mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(stored.as_deref(), Some("ran in 42s"));
+}
+
+#[tokio::test]
+async fn ping_with_message_stores_message() {
+    let (app, pool) = test_app_with_pool().await;
+    let mon_id = create_monitor_with_slug(app.clone(), "ping-msg").await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/ping/{mon_id}"))
+                .header("Content-Type", "text/plain")
+                .body(Body::from("ok"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let stored: Option<String> =
+        sqlx::query_scalar("SELECT message FROM check_ins WHERE monitor_id = ?")
+            .bind(&mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(stored.as_deref(), Some("ok"));
+}
+
+#[tokio::test]
+async fn check_ins_list_exposes_message_field() {
+    let app = test_app().await;
+    let mon_id = create_monitor_with_slug(app.clone(), "checkins-field").await;
+
+    // Failure with a message.
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/failure/{mon_id}"))
+                .header("Content-Type", "text/plain")
+                .body(Body::from("boom"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // Success without a message.
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/success/{mon_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // The list endpoint surfaces `message` (not `comments`).
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(&format!("/monitors/{mon_id}/check-ins?limit=10"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_json(response).await;
+    assert_eq!(body["total"], 2, "two check-ins");
+    // Latest first: the failure (with message).
+    assert_eq!(body["items"][0]["outcome"], "failure");
+    assert_eq!(body["items"][0]["message"], "boom");
+    // No legacy `comments` field leaks into the API.
+    assert!(body["items"][0].get("comments").is_none());
+    // The success check-in has a null message.
+    assert_eq!(body["items"][1]["outcome"], "success");
+    assert!(body["items"][1]["message"].is_null());
 }

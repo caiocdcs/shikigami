@@ -1,6 +1,6 @@
 use axum::{
     Router,
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::StatusCode,
     middleware,
     routing::{delete, get, post},
@@ -61,7 +61,8 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/failure/{monitor_id}",
             post(monitor_handlers::failure_check_in),
-        );
+        )
+        .layer(DefaultBodyLimit::max(INGRESS_BODY_LIMIT));
 
     if state.config.ui_enabled {
         open = open
@@ -71,6 +72,12 @@ pub fn router(state: AppState) -> Router {
 
     protected.merge(open).with_state(state)
 }
+
+/// Maximum size (in bytes) accepted on ingress endpoints (`/ping`, `/success`,
+/// `/failure`). Bounds `check_ins.message` row growth in `SQLite`; oversized bodies
+/// are rejected with 413 by `DefaultBodyLimit` before the handler runs.
+/// 16 KiB covers realistic stderr/stack-trace snippets.
+const INGRESS_BODY_LIMIT: usize = 16 * 1024;
 
 async fn health_check() -> StatusCode {
     StatusCode::OK

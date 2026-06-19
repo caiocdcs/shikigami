@@ -45,7 +45,7 @@ impl<R: MonitorRepository> MonitorChecker<R> {
         for monitor_id in missed {
             match self
                 .monitor_service
-                .check_in(monitor_id.clone(), CheckInOutcome::Failure)
+                .check_in(monitor_id.clone(), CheckInOutcome::Failure, None)
                 .await
             {
                 Ok(()) => {

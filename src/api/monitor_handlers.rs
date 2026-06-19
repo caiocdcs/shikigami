@@ -206,7 +206,7 @@ pub async fn get_monitor_check_ins(
                 monitor_id: c.monitor_id,
                 checked_in_at: c.checked_in_at.to_rfc3339(),
                 outcome: c.outcome.to_string(),
-                comments: c.comments,
+                message: c.message,
             })
             .collect(),
         total: page.total,
@@ -219,9 +219,11 @@ pub async fn get_monitor_check_ins(
 pub async fn ping_monitor(
     State(state): State<AppState>,
     Path(reference): Path<String>,
+    body: String,
 ) -> AppResult<StatusCode> {
     let monitor_id = state.monitor_service.resolve_monitor_id(&reference).await?;
-    state.monitor_service.ping(monitor_id).await?;
+    let message = optional_message(body);
+    state.monitor_service.ping(monitor_id, message).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -229,11 +231,13 @@ pub async fn ping_monitor(
 pub async fn success_check_in(
     State(state): State<AppState>,
     Path(reference): Path<String>,
+    body: String,
 ) -> AppResult<StatusCode> {
     let monitor_id = state.monitor_service.resolve_monitor_id(&reference).await?;
+    let message = optional_message(body);
     state
         .monitor_service
-        .check_in(monitor_id, CheckInOutcome::Success)
+        .check_in(monitor_id, CheckInOutcome::Success, message)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -242,11 +246,25 @@ pub async fn success_check_in(
 pub async fn failure_check_in(
     State(state): State<AppState>,
     Path(reference): Path<String>,
+    body: String,
 ) -> AppResult<StatusCode> {
     let monitor_id = state.monitor_service.resolve_monitor_id(&reference).await?;
+    let message = optional_message(body);
     state
         .monitor_service
-        .check_in(monitor_id, CheckInOutcome::Failure)
+        .check_in(monitor_id, CheckInOutcome::Failure, message)
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Map a raw ingress body to an optional message.
+///
+/// Empty bodies (no `-d` on the curl) yield `None` so existing bodyless pings
+/// keep working. Non-UTF-8 is rejected earlier by the `String` extractor (400);
+/// oversize bodies are rejected earlier by `DefaultBodyLimit` on the ingress
+/// router (413). Trimming is the caller's concern: store verbatim here so the
+/// dashboard shows exactly what the job sent, and let notification formatting
+/// decide how to present it.
+fn optional_message(body: String) -> Option<String> {
+    if body.is_empty() { None } else { Some(body) }
 }

@@ -2,10 +2,11 @@ use validator::Validate;
 
 use crate::core::{
     domain::{
-        CheckInOutcome, Integration, IntegrationId, Monitor, MonitorError, MonitorId,
-        MonitorStatus, NewMonitor, NotificationContent, ScheduleType, monitor::StatusReport,
+        CheckInOutcome, CheckInsResult, Integration, IntegrationId, Monitor, MonitorError,
+        MonitorId, MonitorStatus, NewMonitor, NotificationContent, ScheduleType,
+        monitor::StatusReport,
     },
-    ports::monitor_repository::{CheckInsResult, MonitorRepository},
+    ports::MonitorRepository,
 };
 
 #[derive(Debug, Clone)]
@@ -156,14 +157,20 @@ impl<R: MonitorRepository> MonitorService<R> {
         self.repo.find_missed_monitors().await
     }
 
-    pub async fn ping(&self, monitor_id: MonitorId) -> Result<(), MonitorError> {
-        self.check_in(monitor_id, CheckInOutcome::Success).await
+    pub async fn ping(
+        &self,
+        monitor_id: MonitorId,
+        message: Option<String>,
+    ) -> Result<(), MonitorError> {
+        self.check_in(monitor_id, CheckInOutcome::Success, message)
+            .await
     }
 
     pub async fn check_in(
         &self,
         monitor_id: MonitorId,
         outcome: CheckInOutcome,
+        message: Option<String>,
     ) -> Result<(), MonitorError> {
         let monitor = self
             .repo
@@ -185,6 +192,7 @@ impl<R: MonitorRepository> MonitorService<R> {
                 &monitor.name,
                 &monitor.slug,
                 monitor.last_pinged_at,
+                message.as_deref(),
             ))
         } else {
             None
@@ -197,6 +205,7 @@ impl<R: MonitorRepository> MonitorService<R> {
                 now,
                 next_expected,
                 new_status,
+                message,
                 notification,
             )
             .await

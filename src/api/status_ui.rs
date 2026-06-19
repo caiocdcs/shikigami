@@ -110,6 +110,7 @@ struct MonitorPage {
 struct CheckInView {
     checked_in_at: String,
     outcome: String,
+    message: Option<String>,
 }
 
 pub async fn status_index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
@@ -226,6 +227,7 @@ pub async fn monitor_detail(
             .map(|c| CheckInView {
                 checked_in_at: c.checked_in_at.to_rfc3339(),
                 outcome: c.outcome.to_string(),
+                message: c.message,
             })
             .collect(),
     };

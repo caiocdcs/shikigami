@@ -179,6 +179,16 @@ interval monitors. Timestamps are always stored and returned in UTC.
 `{id}` is either the monitor UUID or its slug, so `POST /ping/my-job` works as well as
 `POST /ping/<uuid>`. Slugs are restricted to `[A-Za-z0-9_-]` (length 1-50).
 
+All three ingress endpoints accept an optional raw-text body stored as the
+check-in `message`. Empty body = no message (backward compatible). Capped at
+16 KiB (413 on overflow). For failures, the message is added to the notification
+body as `Reason: <message>` (truncated to 256 chars).
+
+```sh
+# Failure with a reason:
+backup.sh 2>&1 | curl -X POST --data-binary @- http://localhost:3000/failure/my-job
+```
+
 ## Example: nightly backup monitor
 
 ```bash

@@ -1,77 +1,183 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ name }} - Shikigami</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: #111; color: #eee; padding: 2rem; }
-        h1 { margin-bottom: 0.5rem; font-size: 1.5rem; }
-        h2 { margin-bottom: 1rem; font-size: 1.125rem; }
-        .back { margin-bottom: 1.5rem; }
-        .back a { color: #60a5fa; text-decoration: none; }
-        .back a:hover { text-decoration: underline; }
-        .meta { color: #888; margin-bottom: 1.5rem; }
-        .meta-line { margin-bottom: 0.5rem; }
-        .status-badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; }
-        .status-active { background: #166534; color: #4ade80; }
-        .status-missed { background: #7f1d1d; color: #f87171; }
-        .status-paused { background: #78350f; color: #fbbf24; }
-        .integrations-list { list-style: none; margin-bottom: 1.5rem; }
-        .integrations-list li { padding: 0.25rem 0; color: #aaa; }
-        .integrations-list .channel { color: #666; font-size: 0.75rem; }
-        table { width: 100%; border-collapse: collapse; background: #1a1a1a; border-radius: 6px; overflow: hidden; }
-        th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid #333; }
-        th { background: #222; font-weight: 600; color: #888; font-size: 0.75rem; text-transform: uppercase; }
-        .outcome-success { color: #4ade80; }
-        .outcome-failure { color: #f87171; }
-        .muted { color: #666; font-size: 0.75rem; }
-    </style>
-</head>
-<body>
-    <div class="back"><a href="/status">&larr; All monitors</a></div>
-    <h1>{{ name }}</h1>
-    <div class="status-badge status-{{ status }}">{{ status }}</div>
-    <div class="meta">
-        <div class="meta-line"><strong>Slug:</strong> {{ slug }}</div>
-        <div class="meta-line"><strong>Schedule:</strong> {{ schedule_display }}</div>
-        <div class="meta-line"><strong>Grace:</strong> {{ grace_seconds }}s</div>
-        <div class="meta-line"><strong>Last ping:</strong>{% if let Some(abs) = last_ping_absolute %} <span title="{{ abs }}">{{ last_ping_display }}</span>{% else %} {{ last_ping_display }}{% endif %}</div>
-        <div class="meta-line"><strong>Next expected:</strong>{% if let Some(abs) = next_expected_absolute %} <span title="{{ abs }}">{{ next_expected_display }}</span>{% else %} {{ next_expected_display }}{% endif %}</div>
-    </div>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{{ name }} - Shikigami</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
+                background: #111;
+                color: #eee;
+                padding: 2rem;
+            }
+            h1 {
+                margin-bottom: 0.5rem;
+                font-size: 1.5rem;
+            }
+            h2 {
+                margin-bottom: 1rem;
+                font-size: 1.125rem;
+            }
+            .back {
+                margin-bottom: 1.5rem;
+            }
+            .back a {
+                color: #60a5fa;
+                text-decoration: none;
+            }
+            .back a:hover {
+                text-decoration: underline;
+            }
+            .meta {
+                color: #888;
+                margin-bottom: 1.5rem;
+            }
+            .meta-line {
+                margin-bottom: 0.5rem;
+            }
+            .status-badge {
+                display: inline-block;
+                padding: 0.25rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.875rem;
+                font-weight: 600;
+                margin-bottom: 1rem;
+            }
+            .status-active {
+                background: #166534;
+                color: #4ade80;
+            }
+            .status-missed {
+                background: #7f1d1d;
+                color: #f87171;
+            }
+            .status-paused {
+                background: #78350f;
+                color: #fbbf24;
+            }
+            .integrations-list {
+                list-style: none;
+                margin-bottom: 1.5rem;
+            }
+            .integrations-list li {
+                padding: 0.25rem 0;
+                color: #aaa;
+            }
+            .integrations-list .channel {
+                color: #666;
+                font-size: 0.75rem;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                background: #1a1a1a;
+                border-radius: 6px;
+                overflow: hidden;
+            }
+            th,
+            td {
+                text-align: left;
+                padding: 0.75rem 1rem;
+                border-bottom: 1px solid #333;
+            }
+            th {
+                background: #222;
+                font-weight: 600;
+                color: #888;
+                font-size: 0.75rem;
+                text-transform: uppercase;
+            }
+            .outcome-success {
+                color: #4ade80;
+            }
+            .outcome-failure {
+                color: #f87171;
+            }
+            .muted {
+                color: #666;
+                font-size: 0.75rem;
+            }
+            td.message {
+                color: #ccc;
+                max-width: 40rem;
+                word-break: break-word;
+                white-space: pre-wrap;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="back"><a href="/status">&larr; All monitors</a></div>
+        <h1>{{ name }}</h1>
+        <div class="status-badge status-{{ status }}">{{ status }}</div>
+        <div class="meta">
+            <div class="meta-line"><strong>Slug:</strong> {{ slug }}</div>
+            <div class="meta-line">
+                <strong>Schedule:</strong> {{ schedule_display }}
+            </div>
+            <div class="meta-line">
+                <strong>Grace:</strong> {{ grace_seconds }}s
+            </div>
+            <div class="meta-line">
+                <strong>Last ping:</strong>{% if let Some(abs) =
+                last_ping_absolute %}
+                <span title="{{ abs }}">{{ last_ping_display }}</span>{% else %}
+                {{ last_ping_display }}{% endif %}
+            </div>
+            <div class="meta-line">
+                <strong>Next expected:</strong>{% if let Some(abs) =
+                next_expected_absolute %}
+                <span title="{{ abs }}">{{ next_expected_display }}</span>{%
+                else %} {{ next_expected_display }}{% endif %}
+            </div>
+        </div>
 
-    <h2>Integrations</h2>
-    {% if integrations.is_empty() %}
-    <p class="muted">No integrations linked.</p>
-    {% else %}
-    <ul class="integrations-list">
-        {% for i in integrations %}
-        <li>{{ i.name }} <span class="channel">({{ i.channel }})</span></li>
-        {% endfor %}
-    </ul>
-    {% endif %}
-
-    <h2>Recent Check-ins</h2>
-    {% if check_ins.is_empty() %}
-    <p class="muted">No check-ins yet.</p>
-    {% else %}
-    <table>
-        <thead>
-            <tr>
-                <th>Time</th>
-                <th>Outcome</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for c in check_ins %}
-            <tr>
-                <td>{{ c.checked_in_at }}</td>
-                <td class="outcome-{{ c.outcome }}">{{ c.outcome }}</td>
-            </tr>
+        <h2>Integrations</h2>
+        {% if integrations.is_empty() %}
+        <p class="muted">No integrations linked.</p>
+        {% else %}
+        <ul class="integrations-list">
+            {% for i in integrations %}
+            <li>{{ i.name }} <span class="channel">({{ i.channel }})</span></li>
             {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
-</body>
+        </ul>
+        {% endif %}
+
+        <h2>Recent Check-ins</h2>
+        {% if check_ins.is_empty() %}
+        <p class="muted">No check-ins yet.</p>
+        {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Outcome</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in check_ins %}
+                <tr>
+                    <td>{{ c.checked_in_at }}</td>
+                    <td class="outcome-{{ c.outcome }}">{{ c.outcome }}</td>
+                    <td class="message">
+                        {% if let Some(m) = c.message %}{{ m }}{% else %}<span
+                            class="muted"
+                            >—</span
+                        >{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </body>
 </html>

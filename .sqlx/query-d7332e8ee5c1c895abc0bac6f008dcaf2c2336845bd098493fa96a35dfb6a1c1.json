@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO check_ins (id, monitor_id, checked_in_at, outcome, message) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "d7332e8ee5c1c895abc0bac6f008dcaf2c2336845bd098493fa96a35dfb6a1c1"
+}
