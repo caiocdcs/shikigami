@@ -582,4 +582,22 @@ impl MonitorRepository for SqliteMonitorRepository {
             })
             .collect()
     }
+
+    async fn prune_old_check_ins(
+        &self,
+        cutoff: chrono::DateTime<chrono::Utc>,
+    ) -> Result<u64, MonitorError> {
+        // check_ins.checked_in_at is stored as TEXT in "%Y-%m-%d %H:%M:%S" form
+        // (see check_in insert). Format the cutoff the same way so the textual
+        // comparison is chronological. SQLite compares TEXT lexicographically.
+        let cutoff_str = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
+        let result = sqlx::query!(
+            r#"DELETE FROM check_ins WHERE checked_in_at < ?"#,
+            cutoff_str
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(MonitorError::map_sqlx_error)?;
+        Ok(result.rows_affected())
+    }
 }

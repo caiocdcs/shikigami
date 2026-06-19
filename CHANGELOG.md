@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
   stored as the check-in `message`. For failures it is added to the notification body
   as `Reason: <message>` (truncated to 256 chars). 16 KiB body cap on ingress routes
   (413 on overflow).
+- Check-in retention worker: prunes `check_ins` rows older than `RETENTION_DAYS`
+  (default 30) every `RETENTION_INTERVAL_SECONDS` (default 3600). Bounds SQLite
+  growth for long-running homelab instances. Set `RETENTION_DAYS=0` to disable.
 
 ### Changed
 

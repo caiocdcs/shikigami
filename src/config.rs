@@ -16,6 +16,14 @@ pub struct Config {
 
     #[serde(default)]
     pub ui_enabled: bool,
+
+    /// Check-ins older than this many days are pruned by the retention worker.
+    #[serde(default = "default_retention_days")]
+    pub retention_days: i64,
+
+    /// How often (in seconds) the retention worker prunes old check-ins.
+    #[serde(default = "default_retention_interval_seconds")]
+    pub retention_interval_seconds: u64,
 }
 
 fn default_port() -> u16 {
@@ -24,6 +32,14 @@ fn default_port() -> u16 {
 
 fn default_log_level() -> String {
     "info".to_string()
+}
+
+fn default_retention_days() -> i64 {
+    30
+}
+
+fn default_retention_interval_seconds() -> u64 {
+    3600
 }
 
 impl Config {
@@ -52,6 +68,8 @@ impl Config {
             log_level: "debug".to_string(),
             api_key: None,
             ui_enabled: false,
+            retention_days: default_retention_days(),
+            retention_interval_seconds: default_retention_interval_seconds(),
         }
     }
 
@@ -62,6 +80,8 @@ impl Config {
             log_level: "debug".to_string(),
             api_key: Some(SecretString::new(key.to_string().into())),
             ui_enabled: false,
+            retention_days: default_retention_days(),
+            retention_interval_seconds: default_retention_interval_seconds(),
         }
     }
 
@@ -72,6 +92,8 @@ impl Config {
             log_level: "debug".to_string(),
             api_key: None,
             ui_enabled,
+            retention_days: default_retention_days(),
+            retention_interval_seconds: default_retention_interval_seconds(),
         }
     }
 }

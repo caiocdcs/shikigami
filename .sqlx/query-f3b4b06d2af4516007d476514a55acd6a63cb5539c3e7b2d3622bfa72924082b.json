@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM check_ins WHERE checked_in_at < ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "f3b4b06d2af4516007d476514a55acd6a63cb5539c3e7b2d3622bfa72924082b"
+}

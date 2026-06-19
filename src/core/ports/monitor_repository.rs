@@ -72,4 +72,14 @@ pub trait MonitorRepository: Send + Sync + 'static {
     fn status_report(
         &self,
     ) -> impl Future<Output = Result<Vec<StatusReportEntry>, MonitorError>> + Send;
+
+    /// Delete check-ins older than `cutoff`.
+    ///
+    /// The cutoff is a business decision ("keep N days") computed by the
+    /// caller; the repository only executes the delete and reports how many
+    /// rows were removed. Returns the number of pruned check-ins.
+    fn prune_old_check_ins(
+        &self,
+        cutoff: chrono::DateTime<chrono::Utc>,
+    ) -> impl Future<Output = Result<u64, MonitorError>> + Send;
 }

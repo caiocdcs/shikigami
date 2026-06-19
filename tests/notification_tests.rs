@@ -10,6 +10,7 @@ use shikigami::{
             MonitorRepository, integration_repository::IntegrationRepository,
             notification_dispatcher::OutboxRepository,
         },
+        retention_checker::RetentionChecker,
     },
     spi::{
         gotify_dispatcher::GotifyDispatcher, integration_repository::SqliteIntegrationRepository,
@@ -414,4 +415,126 @@ async fn check_in_failure_folds_message_into_notification_body() {
         notification_body.contains("Reason: exit 1: disk full"),
         "notification body should contain the reason, got: {notification_body}"
     );
+}
+
+// ---- Retention Tests ----
+//
+// prune_old_check_ins deletes rows older than the cutoff (TEXT timestamps,
+// "YYYY-MM-DD HH:MM:SS" UTC) and keeps newer ones. The RetentionChecker
+// computes cutoff = now - retention_days; a row exactly at the cutoff is kept
+// (strict <), one second older is pruned.
+
+/// Insert a check-in for `mon_id` with the given checked_in_at timestamp.
+async fn insert_check_in_at(pool: &SqlitePool, mon_id: &str, when: chrono::DateTime<chrono::Utc>) {
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO check_ins (id, monitor_id, checked_in_at, outcome, message) \
+         VALUES (?, ?, ?, 'success', NULL)",
+    )
+    .bind(id)
+    .bind(mon_id)
+    .bind(when.format("%Y-%m-%d %H:%M:%S").to_string())
+    .execute(pool)
+    .await
+    .expect("insert check_in");
+}
+
+#[tokio::test]
+async fn prune_old_check_ins_deletes_old_and_keeps_new() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+
+    let now = chrono::Utc::now();
+    let old = now - chrono::Duration::days(40);
+    let recent = now - chrono::Duration::days(1);
+    insert_check_in_at(&pool, &mon_id, old).await;
+    insert_check_in_at(&pool, &mon_id, recent).await;
+
+    let cutoff = now - chrono::Duration::days(30);
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let pruned = repo.prune_old_check_ins(cutoff).await.unwrap();
+    assert_eq!(pruned, 1, "only the old row should be pruned");
+
+    let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+        .bind(&mon_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(remaining, 1, "recent row should remain");
+}
+
+#[tokio::test]
+async fn prune_old_check_ins_no_op_when_nothing_old() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+
+    let recent = chrono::Utc::now() - chrono::Duration::days(1);
+    insert_check_in_at(&pool, &mon_id, recent).await;
+
+    let cutoff = chrono::Utc::now() - chrono::Duration::days(30);
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let pruned = repo.prune_old_check_ins(cutoff).await.unwrap();
+    assert_eq!(pruned, 0, "nothing to prune");
+}
+
+#[tokio::test]
+async fn prune_old_check_ins_only_touches_old_rows_across_monitors() {
+    let pool = pool_with_migrations().await;
+    let mon_a = insert_monitor(&pool).await;
+    let mon_b = uuid::Uuid::new_v4().to_string();
+    // Insert a second monitor row directly (insert_monitor hardcodes slug 'test').
+    sqlx::query(
+        "INSERT INTO monitors (id, name, slug, status, schedule_type, interval_seconds, grace_seconds, next_expected_at, created_at) \
+         VALUES (?, 'b', 'b-slug', 'active', 'interval', 60, 10, datetime('now'), datetime('now'))",
+    )
+    .bind(&mon_b)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let now = chrono::Utc::now();
+    insert_check_in_at(&pool, &mon_a, now - chrono::Duration::days(40)).await; // old, A
+    insert_check_in_at(&pool, &mon_b, now - chrono::Duration::days(1)).await; // recent, B
+
+    let cutoff = now - chrono::Duration::days(30);
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let pruned = repo.prune_old_check_ins(cutoff).await.unwrap();
+    assert_eq!(pruned, 1, "only A's old row pruned");
+
+    let remaining_a: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+            .bind(&mon_a)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let remaining_b: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+            .bind(&mon_b)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(remaining_a, 0, "A's old row gone");
+    assert_eq!(remaining_b, 1, "B's recent row untouched");
+}
+
+#[tokio::test]
+async fn retention_checker_run_once_prunes_using_window() {
+    // The worker computes cutoff = now - retention_days. A row 31 days old is
+    // pruned with a 30-day window; a row 29 days old is kept.
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    let now = chrono::Utc::now();
+    insert_check_in_at(&pool, &mon_id, now - chrono::Duration::days(31)).await;
+    insert_check_in_at(&pool, &mon_id, now - chrono::Duration::days(29)).await;
+
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let checker = RetentionChecker::new(repo, Duration::from_secs(3600), 30);
+    checker.run_once().await;
+
+    let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+        .bind(&mon_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(remaining, 1, "29-day row kept, 31-day row pruned");
 }

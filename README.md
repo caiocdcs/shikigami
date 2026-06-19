@@ -61,6 +61,8 @@ Environment variables (or a `.env` file, `__` as nesting separator):
 | `PORT` | `3000` | Listen port |
 | `API_KEY` | unset | Bearer token required for CRUD and `/health/report`. Unset = open + startup warning. |
 | `UI_ENABLED` | `false` | Serve public status page at `/status` (no auth). |
+| `RETENTION_DAYS` | `30` | Check-ins older than this are pruned. `0` disables retention. |
+| `RETENTION_INTERVAL_SECONDS` | `3600` | How often the retention worker runs. |
 
 Example `.env`:
 

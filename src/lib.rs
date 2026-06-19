@@ -30,6 +30,7 @@ use crate::{
         monitor_checker::MonitorChecker,
         monitor_service::MonitorService,
         notification_service::{DispatcherMap, NotificationService},
+        retention_checker::RetentionChecker,
     },
     spi::{
         gotify_dispatcher::GotifyDispatcher, integration_repository::SqliteIntegrationRepository,
@@ -134,12 +135,24 @@ pub async fn create_app_with_pool(
     });
 
     // Build and spawn the missed-monitor checker
-    let checker_repo = SqliteMonitorRepository::new(pool);
+    let checker_repo = SqliteMonitorRepository::new(pool.clone());
     let checker_service = MonitorService::new(checker_repo);
     let checker = MonitorChecker::new(checker_service, Duration::from_secs(60));
     let checker_token = shutdown_token.child_token();
     tokio::spawn(async move {
         checker.run(checker_token).await;
+    });
+
+    // Build and spawn the check-in retention worker
+    let retention_repo = SqliteMonitorRepository::new(pool.clone());
+    let retention = RetentionChecker::new(
+        retention_repo,
+        Duration::from_secs(state.config.retention_interval_seconds),
+        state.config.retention_days,
+    );
+    let retention_token = shutdown_token.child_token();
+    tokio::spawn(async move {
+        retention.run(retention_token).await;
     });
 
     let router = api::routes::router(state);
