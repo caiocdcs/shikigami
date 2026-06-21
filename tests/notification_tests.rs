@@ -6,6 +6,7 @@ use shikigami::{
         monitor_checker::MonitorChecker,
         monitor_service::MonitorService,
         notification_service::{DispatcherMap, NotificationService},
+        outbox_retention_checker::OutboxRetentionChecker,
         ports::{
             MonitorRepository, integration_repository::IntegrationRepository,
             notification_dispatcher::OutboxRepository,
@@ -537,4 +538,169 @@ async fn retention_checker_run_once_prunes_using_window() {
         .await
         .unwrap();
     assert_eq!(remaining, 1, "29-day row kept, 31-day row pruned");
+}
+
+// ---- Outbox Retention Tests ----
+//
+// prune_old_outbox_entries deletes terminal rows (sent/failed) older than the
+// cutoff and NEVER touches pending/sending rows (in-flight/undelivered
+// alerts). The OutboxRetentionChecker computes cutoff = now - retention_days.
+
+/// Insert an outbox row with the given status and created_at. Parent monitor +
+/// integration must exist to satisfy FKs.
+async fn insert_outbox_row(
+    pool: &SqlitePool,
+    mon_id: &str,
+    int_id: &str,
+    status: &str,
+    when: chrono::DateTime<chrono::Utc>,
+) -> String {
+    let id = uuid::Uuid::new_v4().to_string();
+    let notification_json = serde_json::json!({
+        "title": "t", "body": "t", "monitor_name": "t", "monitor_slug": "t", "last_seen_at": null
+    })
+    .to_string();
+    sqlx::query(
+        "INSERT INTO notification_outbox \
+         (id, monitor_id, integration_id, message, retry_count, status, created_at) \
+         VALUES (?, ?, ?, ?, 0, ?, ?)",
+    )
+    .bind(&id)
+    .bind(mon_id)
+    .bind(int_id)
+    .bind(&notification_json)
+    .bind(status)
+    .bind(when.format("%Y-%m-%d %H:%M:%S").to_string())
+    .execute(pool)
+    .await
+    .expect("insert outbox row");
+    id
+}
+
+#[tokio::test]
+async fn prune_old_outbox_deletes_terminal_old_keeps_new() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    let int_id = insert_integration(&pool).await;
+
+    let now = chrono::Utc::now();
+    let old = now - chrono::Duration::days(40);
+    let recent = now - chrono::Duration::days(1);
+    insert_outbox_row(&pool, &mon_id, &int_id, "sent", old).await;
+    insert_outbox_row(&pool, &mon_id, &int_id, "failed", old).await;
+    insert_outbox_row(&pool, &mon_id, &int_id, "sent", recent).await;
+
+    let cutoff = now - chrono::Duration::days(30);
+    let repo = SqliteOutboxRepository::new(pool.clone());
+    let pruned = repo.prune_old_outbox_entries(cutoff).await.unwrap();
+    assert_eq!(pruned, 2, "old sent + old failed pruned");
+
+    let remaining: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM notification_outbox WHERE monitor_id = ?")
+            .bind(&mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(remaining, 1, "recent sent row kept");
+}
+
+#[tokio::test]
+async fn prune_old_outbox_never_touches_pending_or_sending() {
+    // The critical safety property: pending/sending rows are never pruned, even
+    // when older than the cutoff. They represent in-flight or undelivered alerts.
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    let int_id = insert_integration(&pool).await;
+
+    let now = chrono::Utc::now();
+    let old = now - chrono::Duration::days(40);
+    insert_outbox_row(&pool, &mon_id, &int_id, "pending", old).await;
+    insert_outbox_row(&pool, &mon_id, &int_id, "sending", old).await;
+    insert_outbox_row(&pool, &mon_id, &int_id, "sent", old).await;
+    insert_outbox_row(&pool, &mon_id, &int_id, "failed", old).await;
+
+    let cutoff = now - chrono::Duration::days(30);
+    let repo = SqliteOutboxRepository::new(pool.clone());
+    let pruned = repo.prune_old_outbox_entries(cutoff).await.unwrap();
+    assert_eq!(pruned, 2, "only terminal rows pruned");
+
+    let remaining_pending: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notification_outbox WHERE monitor_id = ? AND status = 'pending'",
+    )
+    .bind(&mon_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let remaining_sending: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notification_outbox WHERE monitor_id = ? AND status = 'sending'",
+    )
+    .bind(&mon_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(remaining_pending, 1, "old pending row preserved");
+    assert_eq!(remaining_sending, 1, "old sending row preserved");
+}
+
+#[tokio::test]
+async fn prune_old_outbox_no_op_when_nothing_terminal_old() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    let int_id = insert_integration(&pool).await;
+
+    let recent = chrono::Utc::now() - chrono::Duration::days(1);
+    insert_outbox_row(&pool, &mon_id, &int_id, "sent", recent).await;
+
+    let cutoff = chrono::Utc::now() - chrono::Duration::days(30);
+    let repo = SqliteOutboxRepository::new(pool.clone());
+    let pruned = repo.prune_old_outbox_entries(cutoff).await.unwrap();
+    assert_eq!(pruned, 0, "nothing to prune");
+}
+
+#[tokio::test]
+async fn outbox_retention_checker_run_once_prunes_using_window() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    let int_id = insert_integration(&pool).await;
+    let now = chrono::Utc::now();
+    insert_outbox_row(
+        &pool,
+        &mon_id,
+        &int_id,
+        "sent",
+        now - chrono::Duration::days(31),
+    )
+    .await;
+    insert_outbox_row(
+        &pool,
+        &mon_id,
+        &int_id,
+        "sent",
+        now - chrono::Duration::days(29),
+    )
+    .await;
+    // A pending row 31 days old must survive even with retention on.
+    insert_outbox_row(
+        &pool,
+        &mon_id,
+        &int_id,
+        "pending",
+        now - chrono::Duration::days(31),
+    )
+    .await;
+
+    let repo = SqliteOutboxRepository::new(pool.clone());
+    let checker = OutboxRetentionChecker::new(repo, Duration::from_secs(3600), 30);
+    checker.run_once().await;
+
+    let remaining: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM notification_outbox WHERE monitor_id = ?")
+            .bind(&mon_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        remaining, 2,
+        "29-day sent + 31-day pending kept; 31-day sent pruned"
+    );
 }

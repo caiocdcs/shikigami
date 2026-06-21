@@ -63,6 +63,7 @@ Environment variables (or a `.env` file, `__` as nesting separator):
 | `UI_ENABLED` | `false` | Serve public status page at `/status` (no auth). |
 | `RETENTION_DAYS` | `30` | Check-ins older than this are pruned. `0` disables retention. |
 | `RETENTION_INTERVAL_SECONDS` | `3600` | How often the retention worker runs. |
+| `OUTBOX_RETENTION_DAYS` | `30` | Terminal outbox rows (sent/failed) older than this are pruned. `0` disables. |
 | `POOL_MAX_CONNECTIONS` | `10` | SQLite pool max connections. |
 | `POOL_MIN_CONNECTIONS` | `2` | SQLite pool min connections. |
 | `POOL_ACQUIRE_TIMEOUT_SECONDS` | `3` | Pool acquire timeout. |

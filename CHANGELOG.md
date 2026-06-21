@@ -15,6 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Check-in retention worker: prunes `check_ins` rows older than `RETENTION_DAYS`
   (default 30) every `RETENTION_INTERVAL_SECONDS` (default 3600). Bounds SQLite
   growth for long-running homelab instances. Set `RETENTION_DAYS=0` to disable.
+- Outbox retention worker: prunes terminal `notification_outbox` rows (`sent`/
+  `failed`) older than `OUTBOX_RETENTION_DAYS` (default 30). Pending/sending rows
+  are never pruned. Shares `RETENTION_INTERVAL_SECONDS` cadence.
 - Operational tuning via env vars: `POOL_MAX_CONNECTIONS`, `POOL_MIN_CONNECTIONS`,
   `POOL_ACQUIRE_TIMEOUT_SECONDS`, `POOL_IDLE_TIMEOUT_SECONDS`,
   `NOTIFICATION_INTERVAL_SECONDS`, `NOTIFICATION_MAX_RETRIES`,

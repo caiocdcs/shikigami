@@ -25,6 +25,11 @@ pub struct Config {
     #[serde(default = "default_retention_interval_seconds")]
     pub retention_interval_seconds: u64,
 
+    /// Terminal `notification_outbox` rows (sent/failed) older than this many days
+    /// are pruned. Pending/sending rows are never pruned. `0` disables.
+    #[serde(default = "default_outbox_retention_days")]
+    pub outbox_retention_days: i64,
+
     // --- Pool tuning ---
     #[serde(default = "default_pool_max_connections")]
     pub pool_max_connections: u32,
@@ -61,6 +66,10 @@ fn default_retention_days() -> i64 {
 
 fn default_retention_interval_seconds() -> u64 {
     3600
+}
+
+fn default_outbox_retention_days() -> i64 {
+    30
 }
 
 fn default_pool_max_connections() -> u32 {
@@ -119,6 +128,7 @@ impl Config {
             ui_enabled: false,
             retention_days: default_retention_days(),
             retention_interval_seconds: default_retention_interval_seconds(),
+            outbox_retention_days: default_outbox_retention_days(),
             pool_max_connections: default_pool_max_connections(),
             pool_min_connections: default_pool_min_connections(),
             pool_acquire_timeout_seconds: default_pool_acquire_timeout_seconds(),
@@ -138,6 +148,7 @@ impl Config {
             ui_enabled: false,
             retention_days: default_retention_days(),
             retention_interval_seconds: default_retention_interval_seconds(),
+            outbox_retention_days: default_outbox_retention_days(),
             pool_max_connections: default_pool_max_connections(),
             pool_min_connections: default_pool_min_connections(),
             pool_acquire_timeout_seconds: default_pool_acquire_timeout_seconds(),
@@ -157,6 +168,7 @@ impl Config {
             ui_enabled,
             retention_days: default_retention_days(),
             retention_interval_seconds: default_retention_interval_seconds(),
+            outbox_retention_days: default_outbox_retention_days(),
             pool_max_connections: default_pool_max_connections(),
             pool_min_connections: default_pool_min_connections(),
             pool_acquire_timeout_seconds: default_pool_acquire_timeout_seconds(),

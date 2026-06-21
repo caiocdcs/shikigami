@@ -27,6 +27,14 @@ pub trait OutboxRepository: Send + Sync + 'static {
     fn retry_later(&self, id: &str) -> impl Future<Output = Result<(), sqlx::Error>> + Send;
 
     fn reset_stale_sending(&self) -> impl Future<Output = Result<u64, sqlx::Error>> + Send;
+
+    /// Delete terminal outbox entries (status `sent` or `failed`) older than
+    /// `cutoff`. Pending and sending rows are never pruned: they represent
+    /// in-flight or undelivered alerts. Returns the number of pruned rows.
+    fn prune_old_outbox_entries(
+        &self,
+        cutoff: chrono::DateTime<chrono::Utc>,
+    ) -> impl Future<Output = Result<u64, sqlx::Error>> + Send;
 }
 
 pub trait NotificationDispatcher: Send + Sync + 'static {

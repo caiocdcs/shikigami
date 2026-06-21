@@ -105,4 +105,23 @@ impl OutboxRepository for SqliteOutboxRepository {
         .await?;
         Ok(result.rows_affected())
     }
+
+    async fn prune_old_outbox_entries(
+        &self,
+        cutoff: chrono::DateTime<chrono::Utc>,
+    ) -> Result<u64, sqlx::Error> {
+        // created_at is stored as TEXT via datetime('now'), i.e. "YYYY-MM-DD
+        // HH:MM:SS" UTC. Format the cutoff the same way so the textual
+        // comparison is chronological. Only terminal rows are eligible: pruning
+        // pending/sending would silently drop in-flight or undelivered alerts.
+        let cutoff_str = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
+        let result = sqlx::query(
+            r"DELETE FROM notification_outbox
+               WHERE status IN ('sent', 'failed') AND created_at < ?",
+        )
+        .bind(cutoff_str)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
 }
