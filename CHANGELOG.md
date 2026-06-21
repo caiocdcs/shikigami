@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-21
+
 ### Added
 
 - Ingress endpoints (`/ping`, `/success`, `/failure`) accept an optional raw-text body
@@ -128,7 +130,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Notification dispatch (ntfy, gotify, slack)
 - SQLite with foreign key enforcement
 
-[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/caiocdcs/shikigami/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/caiocdcs/shikigami/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/caiocdcs/shikigami/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/caiocdcs/shikigami/compare/v0.2.0...v0.3.0
