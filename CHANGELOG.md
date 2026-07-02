@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-02
+
+### Security
+
+- Bump `quinn-proto` to 0.11.15 (RUSTSEC-2026-0185). `quinn` is an optional
+  dependency of `reqwest` (its `http3` feature, not enabled here), so it was
+  never compiled into the binary; the bump clears the `cargo audit` finding in
+  `Cargo.lock`.
+
 ## [0.6.0] - 2026-07-02
 
 ### Added
@@ -145,7 +154,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Notification dispatch (ntfy, gotify, slack)
 - SQLite with foreign key enforcement
 
-[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/caiocdcs/shikigami/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/caiocdcs/shikigami/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/caiocdcs/shikigami/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/caiocdcs/shikigami/compare/v0.4.0...v0.4.1
