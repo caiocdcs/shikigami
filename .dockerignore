@@ -1,0 +1,14 @@
+target/
+.git/
+.github/
+.local/
+result/
+docs/
+examples/
+flake.nix
+flake.lock
+install.sh
+*.md
+*.db
+*.db-shm
+*.db-wal

@@ -1,0 +1,27 @@
+# Shikigami - example Docker Compose deployment.
+#
+# Quickstart:
+#   mkdir -p data
+#   docker compose up -d
+#
+# See docs/deployment/docker.md for the full guide. The compose file is the
+# canonical example; the docs link here rather than duplicating a snippet.
+#
+# DATABASE_URL and PORT are baked into the image, so a bare `docker compose up`
+# works out of the box. Override below as needed.
+services:
+  shikigami:
+    image: ghcr.io/caiocdcs/shikigami:latest
+    container_name: shikigami
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/var/lib/shikigami
+    # environment:          # non-secret overrides; secrets go in an env_file instead
+    #   UI_ENABLED: "true"        # serve read-only /status page
+    #   RETENTION_DAYS: "30"      # 0 disables check-in pruning
+    #   LOG_LEVEL: "info"
+    # env_file:
+    #   - shikigami.env           # put API_KEY=<key> here; chmod 0600
+    restart: unless-stopped
+    # user: "1000:1000"           # override if your host UID differs from 1000

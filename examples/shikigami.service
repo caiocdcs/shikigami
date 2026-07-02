@@ -1,0 +1,17 @@
+[Unit]
+Description=Shikigami heartbeat monitor
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/shikigami
+Environment=DATABASE_URL=sqlite:/var/lib/shikigami/shikigami.db?mode=rwc
+Environment=PORT=3000
+Environment=LOG_LEVEL=info
+# EnvironmentFile=/etc/shikigami/env   # optional: set API_KEY=<key> here (chmod 0600)
+DynamicUser=yes
+StateDirectory=shikigami
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

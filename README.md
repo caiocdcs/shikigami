@@ -30,7 +30,9 @@ One-line install (Linux x86_64/aarch64):
 curl -sSfL https://github.com/caiocdcs/shikigami/releases/latest/download/install.sh | sh
 ```
 
-Inspect the script before piping it to a shell if you prefer:
+The script downloads the release tarball and verifies its sha256sum before
+installing. Since you are piping a remote script to a shell, you may prefer to
+inspect it first:
 
 ```sh
 curl -sSfL https://github.com/caiocdcs/shikigami/releases/latest/download/install.sh -o install.sh
@@ -49,6 +51,16 @@ From source:
 cargo build --release
 ./target/release/shikigami
 ```
+
+Docker:
+
+```sh
+mkdir -p data
+docker run -d --name shikigami -p 3000:3000 -v "$PWD/data:/var/lib/shikigami" \
+  --restart unless-stopped ghcr.io/caiocdcs/shikigami:latest
+```
+
+Or use the example Compose file at [`examples/docker-compose.yml`](examples/docker-compose.yml).
 
 ## Configuration
 
@@ -88,40 +100,15 @@ DATABASE_URL=sqlite:shikigami.db?mode=rwc shikigami
 
 Migrations run automatically on first start. The binary is self-contained.
 
-## Deploy with Nix
+## Deploy
 
-Pin shikigami as a flake input:
+Pick a deployment target; all three keep the database at `/var/lib/shikigami`.
+The binary is self-contained (SQLite is bundled), so no system `libsqlite3` is
+required on any deployment.
 
-```nix
-{
-  inputs.shikigami.url = "github:caiocdcs/shikigami";
-}
-```
-
-Run it as a systemd service. There is no NixOS module yet, so point a unit at
-the flake's binary:
-
-```nix
-systemd.services.shikigami = {
-  description = "Shikigami heartbeat monitor";
-  wantedBy = [ "multi-user.target" ];
-  after = [ "network.target" ];
-  serviceConfig = {
-    ExecStart = "${inputs.shikigami.packages.${pkgs.system}.default}/bin/shikigami";
-    DynamicUser = true;
-    StateDirectory = "shikigami";
-    Restart = "on-failure";
-    Environment = [
-      "DATABASE_URL=sqlite:/var/lib/shikigami/shikigami.db?mode=rwc"
-      "PORT=3000"
-      "LOG_LEVEL=info"
-    ];
-  };
-};
-```
-
-`StateDirectory` creates `/var/lib/shikigami` for the SQLite file, owned by the
-dynamic user.
+- [Docker / Docker Compose](docs/deployment/docker.md) - multi-arch image on `ghcr.io`, single container.
+- [systemd](docs/deployment/systemd.md) - bare-metal/VM with the prebuilt binary.
+- [NixOS](docs/deployment/nixos.md) - flake module (`services.shikigami`), builds from source.
 
 ## API
 
@@ -241,10 +228,6 @@ just sqlx-prepare  # regenerate offline sqlx query cache
 ```
 
 See `CONTRIBUTING.md` and `AGENTS.md` before opening a pull request.
-
-## Stack
-
-Rust 2024 / Tokio / Axum / sqlx / SQLite / reqwest
 
 ## License
 

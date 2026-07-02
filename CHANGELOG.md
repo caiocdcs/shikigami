@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-02
+
+### Added
+
+- Multi-arch container image (amd64, arm64) published to `ghcr.io/caiocdcs/shikigami` on every release tag. Tags: `latest` plus the full semver (e.g. `0.6.0`). `Dockerfile` is multi-stage (`rust:bookworm` builder -> `debian:stable-slim` runtime), runs as a non-root UID 1000, bakes a default `DATABASE_URL`, and declares `/var/lib/shikigami` as a `VOLUME`.
+- NixOS module (`nixosModules.default`, `nix/module.nix`) with `services.shikigami` options: `enable`, `package`, `port`, `openFirewall`, `environment`, `environmentFile`. Uses `DynamicUser` + `StateDirectory`; secrets (e.g. `API_KEY`) go through `environmentFile` to avoid leaking into the world-readable Nix store.
+- Deployment guides under `docs/deployment/` (`docker.md`, `systemd.md`, `nixos.md`), plus canonical `examples/docker-compose.yml` and `examples/shikigami.service`.
+- `release` workflow builds and pushes per-arch container images and merges them into a multi-arch manifest (independent of the tarball release; best-effort image).
+
+### Changed
+
+- `flake.nix` now builds the package from source via `crane` instead of fetching a prebuilt tarball pinned to `0.1.1`. Fixes `nix run` serving a 4-major-version-old binary.
+- README `curl | sh` install note now recommends inspecting the script first and notes the sha256 verification the script performs.
+- README "Deploy with Nix" inline snippet replaced by a "Deploy" section linking to `docs/deployment/{docker,systemd,nixos}.md`.
+
 ## [0.5.0] - 2026-06-21
 
 ### Added
@@ -130,7 +145,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Notification dispatch (ntfy, gotify, slack)
 - SQLite with foreign key enforcement
 
-[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/caiocdcs/shikigami/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/caiocdcs/shikigami/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/caiocdcs/shikigami/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/caiocdcs/shikigami/compare/v0.3.0...v0.4.0
