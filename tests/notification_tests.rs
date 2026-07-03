@@ -218,7 +218,7 @@ async fn notification_service_transient_retries() {
             name: "test".into(),
             channel: IntegrationChannel::Ntfy,
             config: IntegrationConfig::Ntfy(NtfyConfig {
-                url: "https://ntfy.sh".into(),
+                url: "http://localhost:1".into(),
                 topic: "test".into(),
                 priority: 3,
                 message: "alert".into(),
