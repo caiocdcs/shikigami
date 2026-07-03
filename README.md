@@ -3,7 +3,7 @@
 [![CI](https://github.com/caiocdcs/shikigami/actions/workflows/ci.yml/badge.svg)](https://github.com/caiocdcs/shikigami/actions/workflows/ci.yml)
 
 Self-hosted heartbeat and cron monitor built in Rust.
-Single binary. SQLite-backed. Notifications via ntfy, gotify, slack.
+Single binary. SQLite-backed. Notifications via ntfy, gotify, email.
 
 Inspired by [healthchecks.io](https://healthchecks.io). It is a dead man's
 switch: if a ping is not received within the expected time plus a grace
@@ -12,7 +12,7 @@ period, an alert is sent.
 - Register monitors with interval or cron schedules
 - HTTP ping API for liveness signals
 - Background detection of missed monitors
-- Notification dispatch with retry (ntfy / gotify / slack)
+- Notification dispatch with retry (ntfy / gotify / email)
 - Outbox pattern decouples detection from delivery
 
 ## How it works
@@ -164,6 +164,8 @@ interval monitors. Timestamps are always stored and returned in UTC.
 | GET | `/integrations/{id}` | Get an integration |
 | PUT | `/integrations/{id}` | Update an integration |
 | DELETE | `/integrations/{id}` | Delete an integration |
+
+Config JSON for each channel is documented in [`docs/integrations.md`](docs/integrations.md).
 
 ### Ingress (called by monitored jobs)
 

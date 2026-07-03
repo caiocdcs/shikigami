@@ -34,9 +34,10 @@ use crate::{
         retention_checker::RetentionChecker,
     },
     spi::{
-        gotify_dispatcher::GotifyDispatcher, integration_repository::SqliteIntegrationRepository,
+        email_dispatcher::EmailDispatcher, gotify_dispatcher::GotifyDispatcher,
+        integration_repository::SqliteIntegrationRepository,
         monitor_repository::SqliteMonitorRepository, ntfy_dispatcher::NtfyDispatcher,
-        outbox_repository::SqliteOutboxRepository, slack_dispatcher::SlackDispatcher,
+        outbox_repository::SqliteOutboxRepository,
     },
 };
 
@@ -102,7 +103,7 @@ pub fn build_notification_service(
     let dispatchers = DispatcherMap::new(
         NtfyDispatcher::new(http_client.clone()),
         GotifyDispatcher::new(http_client.clone()),
-        SlackDispatcher::new(http_client.clone()),
+        EmailDispatcher::new(),
     );
     NotificationService::new(
         outbox_repo,

@@ -135,7 +135,6 @@ pub enum IntegrationConfig {
     Ntfy(NtfyConfig),
     Gotify(GotifyConfig),
     Email(EmailConfig),
-    Slack(SlackConfig),
 }
 
 impl IntegrationConfig {
@@ -144,7 +143,6 @@ impl IntegrationConfig {
             IntegrationConfig::Ntfy(c) => serde_json::to_string(c).unwrap_or_default(),
             IntegrationConfig::Gotify(c) => serde_json::to_string(c).unwrap_or_default(),
             IntegrationConfig::Email(c) => serde_json::to_string(c).unwrap_or_default(),
-            IntegrationConfig::Slack(c) => serde_json::to_string(c).unwrap_or_default(),
         }
     }
 
@@ -162,13 +160,22 @@ impl IntegrationConfig {
             }
             IntegrationChannel::Email => {
                 let config: EmailConfig = serde_json::from_str(json)?;
-                config.validate()?;
+                if config.smtp_host.is_empty() {
+                    return Err(IntegrationError::InvalidConfig(
+                        "smtp_host is required".to_string(),
+                    ));
+                }
+                if config.to.is_empty() || !config.to.contains('@') {
+                    return Err(IntegrationError::InvalidConfig(
+                        "to must be a valid email".to_string(),
+                    ));
+                }
+                if config.from.is_empty() || !config.from.contains('@') {
+                    return Err(IntegrationError::InvalidConfig(
+                        "from must be a valid email".to_string(),
+                    ));
+                }
                 Ok(IntegrationConfig::Email(config))
-            }
-            IntegrationChannel::Slack => {
-                let config: SlackConfig = serde_json::from_str(json)?;
-                config.validate()?;
-                Ok(IntegrationConfig::Slack(config))
             }
         }
     }
@@ -194,21 +201,15 @@ pub struct GotifyConfig {
     pub priority: u8,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Validate)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EmailConfig {
-    #[validate(length(min = 1))]
-    smtp_host: String,
-    smtp_port: u16,
-    #[validate(email)]
-    to: String,
-    #[validate(email)]
-    from: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Validate)]
-pub struct SlackConfig {
-    #[validate(url)]
-    pub webhook_url: String,
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub smtp_username: String,
+    pub smtp_password: String,
+    pub smtp_encryption: SmtpEncryption,
+    pub to: String,
+    pub from: String,
 }
 
 #[non_exhaustive]
@@ -217,7 +218,6 @@ pub enum IntegrationChannel {
     Ntfy,
     Gotify,
     Email,
-    Slack,
 }
 
 impl TryFrom<&str> for IntegrationChannel {
@@ -228,7 +228,7 @@ impl TryFrom<&str> for IntegrationChannel {
             "ntfy" => Ok(IntegrationChannel::Ntfy),
             "gotify" => Ok(IntegrationChannel::Gotify),
             "email" => Ok(IntegrationChannel::Email),
-            "slack" => Ok(IntegrationChannel::Slack),
+
             _ => Err(IntegrationError::InvalidConfig("channel".to_string())),
         }
     }
@@ -240,7 +240,39 @@ impl Display for IntegrationChannel {
             IntegrationChannel::Ntfy => write!(f, "ntfy"),
             IntegrationChannel::Gotify => write!(f, "gotify"),
             IntegrationChannel::Email => write!(f, "email"),
-            IntegrationChannel::Slack => write!(f, "slack"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SmtpEncryption {
+    Tls,
+    Starttls,
+    None,
+}
+
+impl Display for SmtpEncryption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SmtpEncryption::Tls => write!(f, "tls"),
+            SmtpEncryption::Starttls => write!(f, "starttls"),
+            SmtpEncryption::None => write!(f, "none"),
+        }
+    }
+}
+
+impl TryFrom<&str> for SmtpEncryption {
+    type Error = IntegrationError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "tls" => Ok(SmtpEncryption::Tls),
+            "starttls" => Ok(SmtpEncryption::Starttls),
+            "none" => Ok(SmtpEncryption::None),
+            _ => Err(IntegrationError::InvalidConfig(format!(
+                "invalid smtp_encryption: {value}, expected tls, starttls, or none"
+            ))),
         }
     }
 }

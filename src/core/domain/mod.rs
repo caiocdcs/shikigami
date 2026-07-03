@@ -7,8 +7,8 @@ pub mod notification_content;
 pub use check_in::{CheckIn, CheckInsResult};
 pub use dispatch::DispatchError;
 pub use integration::{
-    Integration, IntegrationChannel, IntegrationConfig, IntegrationError, IntegrationId,
-    IntegrationStatus,
+    EmailConfig, Integration, IntegrationChannel, IntegrationConfig, IntegrationError,
+    IntegrationId, IntegrationStatus, SmtpEncryption,
 };
 pub use monitor::{
     CheckInOutcome, Monitor, MonitorError, MonitorId, MonitorStatus, NewMonitor, ScheduleType,

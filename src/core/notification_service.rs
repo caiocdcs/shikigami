@@ -10,19 +10,19 @@ use crate::core::{
 pub struct DispatcherMap {
     ntfy: Box<dyn NotificationDispatcher>,
     gotify: Box<dyn NotificationDispatcher>,
-    slack: Box<dyn NotificationDispatcher>,
+    email: Box<dyn NotificationDispatcher>,
 }
 
 impl DispatcherMap {
     pub fn new(
         ntfy: impl NotificationDispatcher + 'static,
         gotify: impl NotificationDispatcher + 'static,
-        slack: impl NotificationDispatcher + 'static,
+        email: impl NotificationDispatcher + 'static,
     ) -> Self {
         Self {
             ntfy: Box::new(ntfy),
             gotify: Box::new(gotify),
-            slack: Box::new(slack),
+            email: Box::new(email),
         }
     }
 
@@ -34,10 +34,7 @@ impl DispatcherMap {
         match config {
             IntegrationConfig::Ntfy(_) => self.ntfy.dispatch(config, notification).await,
             IntegrationConfig::Gotify(_) => self.gotify.dispatch(config, notification).await,
-            IntegrationConfig::Slack(_) => self.slack.dispatch(config, notification).await,
-            IntegrationConfig::Email(_) => Err(DispatchError::Permanent(
-                "email dispatch not yet implemented".to_string(),
-            )),
+            IntegrationConfig::Email(_) => self.email.dispatch(config, notification).await,
         }
     }
 }

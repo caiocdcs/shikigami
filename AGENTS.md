@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Self-hosted heartbeat/cron monitor. Single binary, SQLite-backed, notifications via ntfy/gotify/slack.
+Self-hosted heartbeat/cron monitor. Single binary, SQLite-backed, notifications via ntfy/gotify/email.
 
 ## Before Finishing
 
@@ -40,7 +40,7 @@ API handlers -> Services (orchestrators) -> Ports (traits)
 ## Testing
 
 ```bash
-just test                  # all 37 tests
+just test                  # all 82 tests
 just test --test integration # API-level tests
 just test --test notification # unit-level outbox/checker tests
 ```

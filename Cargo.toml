@@ -1,10 +1,10 @@
 [package]
 name = "shikigami"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1", features = [ "rt-multi-thread", "time", "macros", "test-util", "signal" ] }
+tokio = { version = "1", features = [ "rt-multi-thread", "time", "macros", "test-util", "signal", "net" ] }
 serde = "1"
 anyhow = "1"
 serde_json = "1"
@@ -29,6 +29,7 @@ croner = "3"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 askama = "0.16.0"
+lettre = { version = "0.11", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport"] }
 
 [dev-dependencies]
 http-body-util = "0.1"

@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-03
+
+### Added
+
+- Email (SMTP) notification dispatcher. Supports TLS (port 465),
+  STARTTLS (port 587), and no encryption, configurable per integration.
+  Uses `lettre` with `rustls` (no OpenSSL dependency). Plain-text emails
+  with the monitor name as subject and failure details in the body.
+
+### Removed
+
+- Slack integration removed. No Slack dispatcher, config, or channel.
+  The `IntegrationChannel::Slack` variant and `SlackConfig` struct have
+  been deleted. If you used Slack integrations, migrate to another channel
+  before upgrading.
+
 ## [0.6.1] - 2026-07-02
 
 ### Security

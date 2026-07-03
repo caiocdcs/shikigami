@@ -309,6 +309,9 @@ async fn create_email_integration_returns_201() {
                         "config": {
                             "smtp_host": "smtp.example.com",
                             "smtp_port": 587,
+                            "smtp_username": "user",
+                            "smtp_password": "pass",
+                            "smtp_encryption": "starttls",
                             "to": "me@example.com",
                             "from": "shikigami@example.com"
                         }
@@ -325,38 +328,6 @@ async fn create_email_integration_returns_201() {
     let body = response_json(response).await;
     assert_eq!(body["name"], "homelab-email");
     assert_eq!(body["channel"], "email");
-}
-
-#[tokio::test]
-async fn create_slack_integration_returns_201() {
-    let app = test_app().await;
-
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/integrations")
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&serde_json::json!({
-                        "name": "homelab-slack",
-                        "channel": "slack",
-                        "config": {
-                            "webhook_url": "https://hooks.slack.com/services/xxx"
-                        }
-                    }))
-                    .unwrap(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::CREATED);
-
-    let body = response_json(response).await;
-    assert_eq!(body["name"], "homelab-slack");
-    assert_eq!(body["channel"], "slack");
 }
 
 // --- Monitor tests ---

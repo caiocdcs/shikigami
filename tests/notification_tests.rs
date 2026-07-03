@@ -14,9 +14,10 @@ use shikigami::{
         retention_checker::RetentionChecker,
     },
     spi::{
-        gotify_dispatcher::GotifyDispatcher, integration_repository::SqliteIntegrationRepository,
+        email_dispatcher::EmailDispatcher, gotify_dispatcher::GotifyDispatcher,
+        integration_repository::SqliteIntegrationRepository,
         monitor_repository::SqliteMonitorRepository, ntfy_dispatcher::NtfyDispatcher,
-        outbox_repository::SqliteOutboxRepository, slack_dispatcher::SlackDispatcher,
+        outbox_repository::SqliteOutboxRepository,
     },
 };
 use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
@@ -192,7 +193,7 @@ async fn notification_service_handles_missing_integration() {
     let dispatchers = DispatcherMap::new(
         NtfyDispatcher::new(client.clone()),
         GotifyDispatcher::new(client.clone()),
-        SlackDispatcher::new(client),
+        EmailDispatcher::new(),
     );
     let outbox_repo = SqliteOutboxRepository::new(pool.clone());
     let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll(), 3);
@@ -239,7 +240,7 @@ async fn notification_service_transient_retries() {
     let dispatchers = DispatcherMap::new(
         NtfyDispatcher::new(client.clone()),
         GotifyDispatcher::new(client.clone()),
-        SlackDispatcher::new(client),
+        EmailDispatcher::new(),
     );
     let outbox_repo = SqliteOutboxRepository::new(pool.clone());
     let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll(), 3);
@@ -267,7 +268,7 @@ async fn notification_worker_responds_to_cancellation() {
     let dispatchers = DispatcherMap::new(
         NtfyDispatcher::new(client.clone()),
         GotifyDispatcher::new(client.clone()),
-        SlackDispatcher::new(client),
+        EmailDispatcher::new(),
     );
     let service = NotificationService::new(outbox_repo, int_repo, dispatchers, fast_poll(), 3);
     let token = CancellationToken::new();
