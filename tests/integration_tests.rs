@@ -2032,12 +2032,21 @@ async fn check_ins_list_exposes_message_field() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = response_json(response).await;
     assert_eq!(body["total"], 2, "two check-ins");
-    // Latest first: the failure (with message).
-    assert_eq!(body["items"][0]["outcome"], "failure");
-    assert_eq!(body["items"][0]["message"], "boom");
+    // Find each check-in by outcome (order may be same-second non-deterministic).
+    let failure_item = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["outcome"] == "failure")
+        .expect("failure check-in");
+    assert_eq!(failure_item["message"], "boom");
     // No legacy `comments` field leaks into the API.
-    assert!(body["items"][0].get("comments").is_none());
-    // The success check-in has a null message.
-    assert_eq!(body["items"][1]["outcome"], "success");
-    assert!(body["items"][1]["message"].is_null());
+    assert!(failure_item.get("comments").is_none());
+    let success_item = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["outcome"] == "success")
+        .expect("success check-in");
+    assert!(success_item["message"].is_null());
 }
