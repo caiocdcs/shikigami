@@ -35,7 +35,7 @@ impl From<Integration> for IntegrationResponse {
             id: integration.id.as_uuid().to_string(),
             name: integration.name,
             channel: integration.channel.to_string(),
-            config: integration.config.to_json(),
+            config: integration.config.to_redacted_json(),
             status: integration.status.to_string(),
             created_at: integration.created_at,
         }

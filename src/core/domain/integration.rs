@@ -147,6 +147,29 @@ impl IntegrationConfig {
         }
     }
 
+    /// Serialize config with secret fields redacted (for API responses).
+    pub fn to_redacted_json(&self) -> String {
+        match self {
+            IntegrationConfig::Ntfy(c) => serde_json::to_string(c).unwrap_or_default(),
+            IntegrationConfig::Gotify(c) => serde_json::json!({
+                "url": c.url,
+                "priority": c.priority,
+                "token": "***",
+            })
+            .to_string(),
+            IntegrationConfig::Email(c) => serde_json::json!({
+                "smtp_host": c.smtp_host,
+                "smtp_port": c.smtp_port,
+                "smtp_username": c.smtp_username,
+                "smtp_password": "***",
+                "smtp_encryption": c.smtp_encryption,
+                "to": c.to,
+                "from": c.from,
+            })
+            .to_string(),
+        }
+    }
+
     pub fn parse(channel: &IntegrationChannel, json: &str) -> Result<Self, IntegrationError> {
         match channel {
             IntegrationChannel::Ntfy => {
