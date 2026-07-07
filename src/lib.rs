@@ -99,7 +99,16 @@ pub fn build_notification_service(
 ) -> NotificationService<SqliteIntegrationRepository, SqliteOutboxRepository> {
     let integration_repo = SqliteIntegrationRepository::new(pool.clone());
     let outbox_repo = SqliteOutboxRepository::new(pool);
-    let http_client = reqwest::Client::new();
+    let http_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .unwrap_or_else(|e| {
+            tracing::warn!(
+                error = %e,
+                "failed to build HTTP client with timeout, falling back to default"
+            );
+            reqwest::Client::new()
+        });
     let dispatchers = DispatcherMap::new(
         NtfyDispatcher::new(http_client.clone()),
         GotifyDispatcher::new(http_client.clone()),
