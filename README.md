@@ -92,6 +92,12 @@ DATABASE_URL=sqlite:shikigami.db?mode=rwc
 LOG_LEVEL=info
 ```
 
+> **Security note:** The SQLite database contains notification credentials
+> (SMTP passwords, gotify tokens) in plaintext. Treat the database file with
+> the same care as `.env` -- restrict filesystem access to the shikigami user
+> only. The Docker image runs as non-root (UID 1000) and the default volume
+> path (`/var/lib/shikigami`) follows this practice.
+
 ## Run
 
 ```sh

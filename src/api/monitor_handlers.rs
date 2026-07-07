@@ -137,12 +137,13 @@ pub async fn update_monitor(
 pub async fn link_integration(
     State(state): State<AppState>,
     Path(monitor_id): Path<Uuid>,
-    Json(payload): Json<LinkIntegrationDto>,
+    ValidatedJson(payload): ValidatedJson<LinkIntegrationDto>,
 ) -> AppResult<StatusCode> {
+    // Safety: DTO validates UUID format, parse is infallible here.
     let iid: Uuid = payload
         .integration_id
         .parse()
-        .map_err(|_| AppError::Validation("invalid integration_id".to_string()))?;
+        .unwrap_or_else(|_| unreachable!());
     state
         .monitor_service
         .link_integration(

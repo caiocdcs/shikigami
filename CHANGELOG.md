@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-07
+
+### Security
+
+- Integration secrets (gotify token, SMTP password) now stored as `SecretString` in
+  memory, reducing exposure via core dumps and debugger inspection.
+- Gotify token sent via `X-Gotify-Key` header instead of URL query string,
+  avoiding token leakage in server/network logs.
+- API responses redact secret fields (`token`, `smtp_password`) in integration
+  config output.
+- HTTP client timeout (10s) prevents notification worker hangs on slow targets.
+
+### Added
+
+- UUID validation on `LinkIntegrationDto.integration_id` (422 on invalid input
+  instead of 400 after dispatch).
+
+### Notes
+
+- The SQLite database file contains notification credentials in plaintext.
+  Treat the database file with the same care as the `.env` file.
+
 ## [0.7.0] - 2026-07-03
 
 ### Added

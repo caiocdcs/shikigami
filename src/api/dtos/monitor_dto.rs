@@ -41,9 +41,18 @@ pub struct UpdateMonitorDto {
     pub timezone: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct LinkIntegrationDto {
+    #[validate(custom(function = "validate_uuid"))]
     pub integration_id: String,
+}
+
+fn validate_uuid(id: &str) -> Result<(), validator::ValidationError> {
+    if uuid::Uuid::parse_str(id).is_ok() {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new("invalid uuid"))
+    }
 }
 
 #[derive(Debug, Serialize)]
