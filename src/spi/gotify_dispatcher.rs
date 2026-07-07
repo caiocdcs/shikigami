@@ -1,6 +1,7 @@
 use std::pin::Pin;
 
 use reqwest::Client;
+use secrecy::ExposeSecret;
 
 use crate::core::{
     domain::{DispatchError, IntegrationConfig, NotificationContent},
@@ -37,11 +38,7 @@ impl NotificationDispatcher for GotifyDispatcher {
         let body = notification.body.clone();
 
         Box::pin(async move {
-            let url = format!(
-                "{}/message?token={}",
-                gotify.url.trim_end_matches('/'),
-                gotify.token
-            );
+            let url = format!("{}/message", gotify.url.trim_end_matches('/'));
 
             let payload = serde_json::json!({
                 "title": title,
@@ -51,6 +48,7 @@ impl NotificationDispatcher for GotifyDispatcher {
 
             let resp = client
                 .post(&url)
+                .header("X-Gotify-Key", gotify.token.expose_secret())
                 .json(&payload)
                 .send()
                 .await

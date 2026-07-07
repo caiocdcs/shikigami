@@ -11,6 +11,7 @@ use lettre::{
         },
     },
 };
+use secrecy::ExposeSecret;
 
 use crate::core::domain::{
     DispatchError, EmailConfig, IntegrationConfig, NotificationContent, SmtpEncryption,
@@ -73,7 +74,10 @@ async fn send_email(config: &EmailConfig, title: &str, body: &str) -> Result<(),
         .body(body.to_string())
         .map_err(|e| DispatchError::Permanent(format!("failed to build email: {e}")))?;
 
-    let creds = Credentials::new(config.smtp_username.clone(), config.smtp_password.clone());
+    let creds = Credentials::new(
+        config.smtp_username.clone(),
+        config.smtp_password.expose_secret().to_string(),
+    );
 
     let mailer = build_transport(
         &config.smtp_host,

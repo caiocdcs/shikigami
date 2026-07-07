@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
@@ -165,6 +166,11 @@ impl IntegrationConfig {
                         "smtp_host is required".to_string(),
                     ));
                 }
+                if config.smtp_password.expose_secret().is_empty() {
+                    return Err(IntegrationError::InvalidConfig(
+                        "smtp_password is required".to_string(),
+                    ));
+                }
                 if config.to.is_empty() || !config.to.contains('@') {
                     return Err(IntegrationError::InvalidConfig(
                         "to must be a valid email".to_string(),
@@ -192,24 +198,64 @@ pub struct NtfyConfig {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Validate)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct GotifyConfig {
-    #[validate(length(min = 1))]
     pub url: String,
-    #[validate(length(min = 1))]
-    pub token: String,
+    pub token: SecretString,
     pub priority: u8,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+impl Serialize for GotifyConfig {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("GotifyConfig", 3)?;
+        s.serialize_field("url", &self.url)?;
+        s.serialize_field("token", self.token.expose_secret())?;
+        s.serialize_field("priority", &self.priority)?;
+        s.end()
+    }
+}
+
+impl GotifyConfig {
+    pub fn validate(&self) -> Result<(), IntegrationError> {
+        if self.url.is_empty() {
+            return Err(IntegrationError::InvalidConfig(
+                "url is required".to_string(),
+            ));
+        }
+        if self.token.expose_secret().is_empty() {
+            return Err(IntegrationError::InvalidConfig(
+                "token is required".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct EmailConfig {
     pub smtp_host: String,
     pub smtp_port: u16,
     pub smtp_username: String,
-    pub smtp_password: String,
+    pub smtp_password: SecretString,
     pub smtp_encryption: SmtpEncryption,
     pub to: String,
     pub from: String,
+}
+
+impl Serialize for EmailConfig {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("EmailConfig", 7)?;
+        s.serialize_field("smtp_host", &self.smtp_host)?;
+        s.serialize_field("smtp_port", &self.smtp_port)?;
+        s.serialize_field("smtp_username", &self.smtp_username)?;
+        s.serialize_field("smtp_password", self.smtp_password.expose_secret())?;
+        s.serialize_field("smtp_encryption", &self.smtp_encryption)?;
+        s.serialize_field("to", &self.to)?;
+        s.serialize_field("from", &self.from)?;
+        s.end()
+    }
 }
 
 #[non_exhaustive]
