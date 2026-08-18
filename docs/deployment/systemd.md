@@ -79,9 +79,14 @@ journalctl -u shikigami -f
 
 ## Data path and backups
 
-The database lives at `/var/lib/shikigami/shikigami.db`. Migrations run
-automatically on first start. Back up that directory (or at least the `.db`
-file) on your normal schedule.
+The database lives at `/var/lib/shikigami/shikigami.db`. It runs in WAL mode,
+which keeps recent writes in `shikigami.db-wal` alongside the main file -- so
+copying only `shikigami.db` while the service is running misses recent writes.
+Back up with the SQLite online backup (`sqlite3 ... ".backup ..."`) or by
+stopping the service first and copying all three files. See the
+[README](../../README.md#database-file--backups) for details. Do not store the
+database on a network filesystem (NFS/SMB). Migrations run automatically on
+first start.
 
 ## Health probes
 

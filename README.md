@@ -116,6 +116,26 @@ required on any deployment.
 - [systemd](docs/deployment/systemd.md) - bare-metal/VM with the prebuilt binary.
 - [NixOS](docs/deployment/nixos.md) - flake module (`services.shikigami`), builds from source.
 
+### Database file & backups
+
+Shikigami runs SQLite in WAL (write-ahead log) mode so reads and writes do not
+block each other. WAL keeps recent, not-yet-checkpointed writes in sidecar
+files next to the main database:
+
+- `shikigami.db` - the main database
+- `shikigami.db-wal` - the write-ahead log
+- `shikigami.db-shm` - shared-memory index for WAL
+
+Copying only `shikigami.db` while the process is running **misses recent
+writes**. Back up safely with either:
+
+- the SQLite online backup, which snapshots a consistent copy while live:
+  `sqlite3 shikigami.db ".backup /path/to/backup.db"`, or
+- stop the process, then copy all three files.
+
+Do not place the database on a network filesystem (NFS/SMB/CIFS): WAL requires
+a local filesystem and will error or corrupt on network storage.
+
 ## API
 
 When `API_KEY` is set, all management endpoints (`/monitors*`, `/integrations*`,

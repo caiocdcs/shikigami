@@ -465,7 +465,13 @@ impl MonitorRepository for SqliteMonitorRepository {
         let outcome_str = outcome.to_string();
         let status_str = new_status.to_string();
 
-        // Insert check_in record
+        // Insert check_in record, update the monitor, and queue any failure
+        // notifications in a single transaction so the outbox guarantee holds:
+        // the outbox rows exist iff the state change they reflect committed.
+        // Write-first (INSERT) so the write lock is acquired up front and
+        // busy_timeout applies; no BEGIN IMMEDIATE needed.
+        let mut tx = self.pool.begin().await?;
+
         let check_in_id = uuid::Uuid::new_v4().to_string();
         sqlx::query!(
             r#"INSERT INTO check_ins (id, monitor_id, checked_in_at, outcome, message) VALUES (?, ?, ?, ?, ?)"#,
@@ -475,7 +481,7 @@ impl MonitorRepository for SqliteMonitorRepository {
             outcome_str,
             message
         )
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(MonitorError::map_sqlx_error)?;
 
@@ -487,7 +493,7 @@ impl MonitorRepository for SqliteMonitorRepository {
             status_str,
             monitor_id_str
         )
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(MonitorError::map_sqlx_error)?;
 
@@ -497,7 +503,7 @@ impl MonitorRepository for SqliteMonitorRepository {
                 r#"SELECT integration_id FROM monitor_integrations WHERE monitor_id = ?"#,
                 monitor_id_str
             )
-            .fetch_all(&self.pool)
+            .fetch_all(&mut *tx)
             .await?;
 
             let notification_json =
@@ -512,12 +518,13 @@ impl MonitorRepository for SqliteMonitorRepository {
                     int_id,
                     notification_json
                 )
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await
                 .map_err(MonitorError::map_sqlx_error)?;
             }
         }
 
+        tx.commit().await?;
         Ok(())
     }
 

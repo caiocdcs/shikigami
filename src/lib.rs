@@ -72,8 +72,20 @@ pub async fn create_pool(config: &Config) -> anyhow::Result<SqlitePool> {
         .idle_timeout(Duration::from_secs(config.pool_idle_timeout_seconds))
         .after_connect(|conn, _meta| {
             Box::pin(async {
+                // WAL: readers no longer block writers (and vice versa). Persistent
+                // on the DB file, but re-issuing per connection is idempotent.
+                // Silent no-op on in-memory databases, which cannot use WAL.
+                sqlx::query("PRAGMA journal_mode = WAL")
+                    .execute(&mut *conn)
+                    .await?;
+                // Serialize write contention gracefully: on a write/write lock
+                // collision, retry for up to 5s instead of returning SQLITE_BUSY
+                // immediately.
+                sqlx::query("PRAGMA busy_timeout = 5000")
+                    .execute(&mut *conn)
+                    .await?;
                 sqlx::query("PRAGMA foreign_keys = ON")
-                    .execute(conn)
+                    .execute(&mut *conn)
                     .await?;
                 Ok(())
             })
