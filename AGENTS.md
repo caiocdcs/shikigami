@@ -40,7 +40,7 @@ API handlers -> Services (orchestrators) -> Ports (traits)
 ## Testing
 
 ```bash
-just test                  # all 82 tests
+just test                  # all 93 tests
 just test --test integration # API-level tests
 just test --test notification # unit-level outbox/checker tests
 ```

@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-09
+
+### Security
+
+- Update `h2` to 0.4.16 (RUSTSEC-2026-0258).
+- API key comparison is constant-time.
+
+### Added
+
+- Recovery notification when a missed monitor checks in successfully again.
+- `HOST` setting (and `services.shikigami.listenAddress` in the NixOS module)
+  to choose the bind address.
+- The Nix package now builds on macOS as well as Linux.
+- Redesigned status pages: problems sorted first, a one-line summary of
+  overall health, and light/dark themes.
+
+### Fixed
+
+- Unpausing a monitor or changing its schedule recomputes the next expected
+  check-in, instead of flagging the monitor as missed on the next check.
+- Paused monitors stay paused when they check in, and never send alerts.
+- Notification rows that can't be decoded are marked failed instead of
+  blocking the delivery queue.
+- Invalid `integration_id` on link returns 400 instead of panicking.
+- Flake package version now follows `Cargo.toml`.
+
+### Changed
+
+- Check-in and outbox retention run in a single worker.
+- NixOS module waits for `network-online.target` and adds systemd hardening.
+- Example systemd unit waits for `network-online.target` and sets `HOST`.
+
+### Removed
+
+- `POOL_*` settings; the SQLite pool uses fixed defaults.
+- Docker image, `install.sh` and the release workflow. Deploy with the NixOS
+  module, or build with Nix or cargo for systemd.
+
+## [0.8.1] - 2026-08-18
+
+### Changed
+
+- SQLite runs in WAL mode with a 5s `busy_timeout`, so reads no longer block
+  writes and concurrent writers retry instead of failing with `SQLITE_BUSY`.
+- A check-in, its monitor update and any queued notifications are written in
+  one transaction: alerts are only queued if the check-in commits.
+
 ## [0.8.0] - 2026-07-07
 
 ### Security
@@ -192,7 +239,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Notification dispatch (ntfy, gotify, slack)
 - SQLite with foreign key enforcement
 
-[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/caiocdcs/shikigami/compare/v0.8.1...v0.9.0
+[0.8.1]: https://github.com/caiocdcs/shikigami/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/caiocdcs/shikigami/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/caiocdcs/shikigami/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/caiocdcs/shikigami/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/caiocdcs/shikigami/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/caiocdcs/shikigami/compare/v0.4.1...v0.5.0
