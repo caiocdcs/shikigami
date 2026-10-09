@@ -13,9 +13,7 @@ use crate::{
         CheckInResponse, CheckInsPage, CreateMonitorDto, IntegrationResponse, LinkIntegrationDto,
         MonitorResponse, UpdateMonitorDto,
     },
-    core::domain::{
-        CheckInOutcome, IntegrationId, Monitor, MonitorId, MonitorStatus, ScheduleType,
-    },
+    core::domain::{CheckInOutcome, IntegrationId, MonitorId},
     error::{AppError, AppResult},
 };
 
@@ -85,51 +83,21 @@ pub async fn update_monitor(
     Path(id): Path<Uuid>,
     ValidatedJson(payload): ValidatedJson<UpdateMonitorDto>,
 ) -> AppResult<StatusCode> {
-    let schedule = match payload.schedule_type.as_str() {
-        "cron" => {
-            let expr = payload
-                .cron_expr
-                .ok_or_else(|| AppError::Validation("cron_expr required".to_string()))?;
-            ScheduleType::Cron {
-                cron_expr: expr,
-                timezone: payload.timezone.unwrap_or_else(|| "UTC".to_string()),
-            }
-        }
-        "interval" => {
-            let secs = payload
-                .interval_seconds
-                .ok_or_else(|| AppError::Validation("interval_seconds required".to_string()))?;
-            ScheduleType::Interval {
-                interval_seconds: secs,
-            }
-        }
-        _ => {
-            return Err(AppError::Validation(
-                "schedule_type must be 'cron' or 'interval'".to_string(),
-            ));
-        }
-    };
-    let status = MonitorStatus::try_from(payload.status.as_str())
-        .map_err(|_| AppError::Validation("invalid status".to_string()))?;
-
-    let existing = state
+    state
         .monitor_service
-        .get_monitor(MonitorId::from_uuid(id))
-        .await?
-        .ok_or(AppError::NotFound)?;
-    let monitor = Monitor {
-        id: MonitorId::from_uuid(id),
-        name: payload.name,
-        description: payload.description,
-        slug: payload.slug,
-        schedule_type: schedule,
-        status,
-        grace_seconds: payload.grace_seconds,
-        last_pinged_at: existing.last_pinged_at,
-        next_expected_at: existing.next_expected_at,
-        created_at: existing.created_at,
-    };
-    state.monitor_service.update_monitor(monitor).await?;
+        .update_monitor(
+            MonitorId::from_uuid(id),
+            payload.name,
+            payload.description,
+            payload.slug,
+            payload.schedule_type,
+            payload.cron_expr,
+            payload.interval_seconds,
+            payload.grace_seconds,
+            payload.status,
+            payload.timezone,
+        )
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

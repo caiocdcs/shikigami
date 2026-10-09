@@ -80,9 +80,54 @@ impl<R: MonitorRepository> MonitorService<R> {
         self.repo.delete_monitor(monitor_id).await
     }
 
-    pub async fn update_monitor(&self, monitor: Monitor) -> Result<(), MonitorError> {
+    pub async fn update_monitor(
+        &self,
+        monitor_id: MonitorId,
+        name: String,
+        description: Option<String>,
+        slug: String,
+        schedule_type: String,
+        cron_expr: Option<String>,
+        interval_seconds: Option<i64>,
+        grace_seconds: i64,
+        status: String,
+        timezone: Option<String>,
+    ) -> Result<(), MonitorError> {
+        let schedule =
+            ScheduleType::from_parts(&schedule_type, cron_expr, interval_seconds, timezone)?;
+        let status = MonitorStatus::try_from(status.as_str())
+            .map_err(|_| MonitorError::InvalidConfig("invalid status".to_string()))?;
+
+        let existing = self
+            .repo
+            .get_monitor(monitor_id.clone())
+            .await?
+            .ok_or_else(|| MonitorError::NotFound(monitor_id.clone()))?;
+
+        // A schedule change or a transition back to active (unpause, manual
+        // reset from missed) invalidates the stored deadline. Keeping it would
+        // flag the monitor as missed on the next checker tick.
+        let reactivated =
+            status == MonitorStatus::Active && existing.status != MonitorStatus::Active;
+        let next_expected_at = if schedule != existing.schedule_type || reactivated {
+            schedule.next_occurrence_after(&chrono::Utc::now())?
+        } else {
+            existing.next_expected_at
+        };
+
+        let monitor = Monitor::new(
+            monitor_id,
+            name,
+            description,
+            slug,
+            schedule,
+            status,
+            grace_seconds,
+            existing.last_pinged_at,
+            next_expected_at,
+            existing.created_at,
+        );
         monitor.validate()?;
-        monitor.schedule_type.validate()?;
         self.repo.update_monitor(monitor).await
     }
 

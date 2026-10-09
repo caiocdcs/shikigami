@@ -705,3 +705,93 @@ async fn outbox_retention_checker_run_once_prunes_using_window() {
         "29-day sent + 31-day pending kept; 31-day sent pruned"
     );
 }
+
+// ---- Paused / update behavior ----
+
+/// Put a monitor in `status` with a deadline an hour in the past.
+async fn set_status_with_stale_deadline(pool: &SqlitePool, mon_id: &str, status: &str) {
+    let past = chrono::Utc::now() - chrono::Duration::hours(1);
+    sqlx::query("UPDATE monitors SET status = ?, next_expected_at = ? WHERE id = ?")
+        .bind(status)
+        .bind(past.format("%Y-%m-%d %H:%M:%S").to_string())
+        .bind(mon_id)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn monitor_status(pool: &SqlitePool, mon_id: &str) -> String {
+    sqlx::query_scalar("SELECT status FROM monitors WHERE id = ?")
+        .bind(mon_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn unpausing_monitor_resets_stale_deadline() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    set_status_with_stale_deadline(&pool, &mon_id, "paused").await;
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let service = MonitorService::new(repo.clone());
+    let id = service.resolve_monitor_id(&mon_id).await.unwrap();
+
+    // Same schedule as insert_monitor (interval 60s, grace 10s), status -> active.
+    service
+        .update_monitor(
+            id.clone(),
+            "test".to_string(),
+            None,
+            "test".to_string(),
+            "interval".to_string(),
+            None,
+            Some(60),
+            10,
+            "active".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let monitor = repo.get_monitor(id).await.unwrap().unwrap();
+    assert!(
+        monitor.next_expected_at.unwrap() > chrono::Utc::now(),
+        "deadline recomputed into the future"
+    );
+    assert!(
+        repo.find_missed_monitors().await.unwrap().is_empty(),
+        "not flagged missed right after unpause"
+    );
+}
+
+#[tokio::test]
+async fn changing_schedule_recomputes_deadline() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    set_status_with_stale_deadline(&pool, &mon_id, "active").await;
+    let repo = SqliteMonitorRepository::new(pool.clone());
+    let service = MonitorService::new(repo.clone());
+    let id = service.resolve_monitor_id(&mon_id).await.unwrap();
+
+    service
+        .update_monitor(
+            id.clone(),
+            "test".to_string(),
+            None,
+            "test".to_string(),
+            "interval".to_string(),
+            None,
+            Some(3600),
+            10,
+            "active".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let monitor = repo.get_monitor(id).await.unwrap().unwrap();
+    let next = monitor.next_expected_at.unwrap();
+    assert!(next > chrono::Utc::now() + chrono::Duration::minutes(59));
+}
+
