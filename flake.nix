@@ -65,8 +65,7 @@
           commonArgs
           // {
             inherit cargoArtifacts;
-            pname = "shikigami";
-            version = "0.6.0";
+            inherit (craneLib.crateNameFromCargoToml { cargoToml = ./Cargo.toml; }) pname version;
             meta = {
               mainProgram = "shikigami";
               platforms = lib.platforms.linux;
