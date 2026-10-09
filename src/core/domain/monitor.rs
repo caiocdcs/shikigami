@@ -99,13 +99,45 @@ impl Monitor {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum ScheduleType {
     Cron { cron_expr: String, timezone: String },
     Interval { interval_seconds: i64 },
 }
 
 impl ScheduleType {
+    /// Build a schedule from its flat API representation (`schedule_type`
+    /// discriminator plus the optional per-kind fields).
+    pub fn from_parts(
+        kind: &str,
+        cron_expr: Option<String>,
+        interval_seconds: Option<i64>,
+        timezone: Option<String>,
+    ) -> Result<Self, MonitorError> {
+        let schedule = match kind {
+            "cron" => ScheduleType::Cron {
+                cron_expr: cron_expr.ok_or_else(|| {
+                    MonitorError::InvalidConfig("cron_expr required for cron schedule".to_string())
+                })?,
+                timezone: timezone.unwrap_or_else(|| "UTC".to_string()),
+            },
+            "interval" => ScheduleType::Interval {
+                interval_seconds: interval_seconds.ok_or_else(|| {
+                    MonitorError::InvalidConfig(
+                        "interval_seconds required for interval schedule".to_string(),
+                    )
+                })?,
+            },
+            _ => {
+                return Err(MonitorError::InvalidConfig(
+                    "schedule_type must be 'cron' or 'interval'".to_string(),
+                ));
+            }
+        };
+        schedule.validate()?;
+        Ok(schedule)
+    }
+
     pub fn validate(&self) -> Result<(), MonitorError> {
         match self {
             ScheduleType::Cron {
@@ -169,23 +201,6 @@ impl ScheduleType {
     }
 }
 
-impl TryFrom<&str> for ScheduleType {
-    type Error = MonitorError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "cron" => Ok(ScheduleType::Cron {
-                cron_expr: String::new(),
-                timezone: "UTC".to_string(),
-            }),
-            "interval" => Ok(ScheduleType::Interval {
-                interval_seconds: 0,
-            }),
-            _ => Err(MonitorError::InvalidConfig("schedule_type".to_string())),
-        }
-    }
-}
-
 impl Display for ScheduleType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -195,7 +210,7 @@ impl Display for ScheduleType {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum MonitorStatus {
     Active,
     Paused,

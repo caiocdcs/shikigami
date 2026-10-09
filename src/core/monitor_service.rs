@@ -30,42 +30,8 @@ impl<R: MonitorRepository> MonitorService<R> {
         grace_seconds: i64,
         timezone: Option<String>,
     ) -> Result<Monitor, MonitorError> {
-        let schedule = match schedule_type.as_str() {
-            "cron" => {
-                let expr = cron_expr.ok_or_else(|| {
-                    MonitorError::InvalidConfig("cron_expr required for cron schedule".to_string())
-                })?;
-                if expr.is_empty() {
-                    return Err(MonitorError::InvalidConfig(
-                        "cron_expr must not be empty".to_string(),
-                    ));
-                }
-                ScheduleType::Cron {
-                    cron_expr: expr,
-                    timezone: timezone.unwrap_or_else(|| "UTC".to_string()),
-                }
-            }
-            "interval" => {
-                let secs = interval_seconds.ok_or_else(|| {
-                    MonitorError::InvalidConfig(
-                        "interval_seconds required for interval schedule".to_string(),
-                    )
-                })?;
-                if secs <= 0 {
-                    return Err(MonitorError::InvalidConfig(
-                        "interval_seconds must be greater than 0".to_string(),
-                    ));
-                }
-                ScheduleType::Interval {
-                    interval_seconds: secs,
-                }
-            }
-            _ => {
-                return Err(MonitorError::InvalidConfig(
-                    "schedule_type must be 'cron' or 'interval'".to_string(),
-                ));
-            }
-        };
+        let schedule =
+            ScheduleType::from_parts(&schedule_type, cron_expr, interval_seconds, timezone)?;
 
         let new_monitor = NewMonitor {
             name,
