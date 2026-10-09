@@ -5,7 +5,7 @@
 #
 # The module receives `self` so the default package can resolve to the flake's
 # crane-built binary for the host system (NixOS is Linux, so
-# self.packages.${pkgs.system}.default is the crane package).
+# self.packages.${pkgs.stdenv.hostPlatform.system}.default is the crane package).
 {
   self,
 }:
@@ -27,11 +27,21 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = self.packages.${pkgs.system}.default;
+      default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
       defaultText = lib.literalMD "shikigami flake `packages.default`";
       description = ''
         Shikigami binary package to run. Defaults to the crane-built package
         from this flake. Override to pin a specific version or a local build.
+      '';
+    };
+
+    listenAddress = lib.mkOption {
+      type = lib.types.str;
+      default = "0.0.0.0";
+      example = "127.0.0.1";
+      description = ''
+        Address the HTTP listener binds to. Passed to the service as HOST.
+        Use 127.0.0.1 when running behind a reverse proxy on the same host.
       '';
     };
 
@@ -86,7 +96,9 @@ in
     systemd.services.shikigami = {
       description = "Shikigami heartbeat and cron monitor";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" ];
+      # Notifications (ntfy/gotify/SMTP) need outbound network.
+      wants = [ "network-online.target" ];
+      after = [ "network-online.target" ];
 
       serviceConfig = {
         Type = "simple";
@@ -94,8 +106,27 @@ in
         DynamicUser = true;
         StateDirectory = "shikigami";
         Restart = "on-failure";
+
+        # DynamicUser already implies ProtectSystem=strict, ProtectHome,
+        # PrivateTmp and RemoveIPC. These are cheap extras for a network daemon.
+        NoNewPrivileges = true;
+        CapabilityBoundingSet = "";
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectControlGroups = true;
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+        RestrictNamespaces = true;
+        LockPersonality = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [ "@system-service" ];
+
         Environment = [
           "DATABASE_URL=sqlite:/var/lib/shikigami/shikigami.db?mode=rwc"
+          "HOST=${cfg.listenAddress}"
           "PORT=${toString cfg.port}"
           "LOG_LEVEL=info"
         ]

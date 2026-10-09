@@ -58,6 +58,7 @@ sudo nixos-rebuild switch --flake .#myhost
 |--------|------|---------|-------------|
 | `services.shikigami.enable` | bool | `false` | Enable the Shikigami service. |
 | `services.shikigami.package` | package | flake `packages.default` | Shikigami binary to run. |
+| `services.shikigami.listenAddress` | str | `"0.0.0.0"` | Bind address. Passed as `HOST`. Use `127.0.0.1` behind a reverse proxy. |
 | `services.shikigami.port` | port | `3000` | TCP listen port. Passed as `PORT`. |
 | `services.shikigami.openFirewall` | bool | `false` | Open the port in `networking.firewall`. |
 | `services.shikigami.environment` | attrsOf str | `{}` | Non-secret env overrides (`KEY=VALUE`). |
