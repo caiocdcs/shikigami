@@ -107,11 +107,10 @@ pub async fn link_integration(
     Path(monitor_id): Path<Uuid>,
     ValidatedJson(payload): ValidatedJson<LinkIntegrationDto>,
 ) -> AppResult<StatusCode> {
-    // Safety: DTO validates UUID format, parse is infallible here.
     let iid: Uuid = payload
         .integration_id
         .parse()
-        .unwrap_or_else(|_| unreachable!());
+        .map_err(|_| AppError::Validation("invalid integration_id".to_string()))?;
     state
         .monitor_service
         .link_integration(
