@@ -229,6 +229,17 @@ just sqlx-prepare  # regenerate offline sqlx query cache
 
 See `CONTRIBUTING.md` and `AGENTS.md` before opening a pull request.
 
+### Releasing
+
+1. Bump `version` in `Cargo.toml` (and `Cargo.lock` via `cargo build`).
+2. Add a `## [X.Y.Z] - YYYY-MM-DD` section and compare link to `CHANGELOG.md`.
+3. Commit as `release: bump to vX.Y.Z`, then `git tag -a vX.Y.Z -m vX.Y.Z` and
+   push the commit and tag.
+
+The Release workflow checks that the tag matches `Cargo.toml` and the
+changelog, runs `nix build`, and publishes a GitHub release with that
+version's changelog section as notes. No binaries are uploaded.
+
 ## License
 
 [MIT](LICENSE)

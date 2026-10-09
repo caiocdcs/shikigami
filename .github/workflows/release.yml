@@ -1,0 +1,87 @@
+name: Release
+
+# Push an annotated tag vX.Y.Z (matching Cargo.toml) to publish a release.
+# No binaries are uploaded: install with Nix or build from source.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches Cargo.toml and CHANGELOG
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          crate=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          if [ "$tag" != "$crate" ]; then
+            echo "::error::tag v$tag does not match Cargo.toml version $crate"
+            exit 1
+          fi
+          if ! grep -q "^## \[$tag\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$tag]' section"
+            exit 1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Nix build
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Build
+        run: nix build -L .#default
+
+      - name: Package version matches tag
+        run: |
+          got=$(nix eval --raw .#default.version)
+          want="${{ needs.verify.outputs.version }}"
+          [ "$got" = "$want" ] || { echo "::error::flake version $got != $want"; exit 1; }
+
+  release:
+    name: GitHub release
+    needs: [verify, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          awk -v v="$VERSION" '
+            /^## \[/ { p = (index($0, "## [" v "]") == 1); next }
+            /^\[[^]]+\]: / { p = 0 }
+            p
+          ' CHANGELOG.md > notes.md
+          prev=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/||' \
+            | sort -V | grep -B1 -x "v$VERSION" | head -1)
+          if [ -n "$prev" ] && [ "$prev" != "v$VERSION" ]; then
+            printf '\n**Full changelog:** %s/compare/%s...v%s\n' \
+              "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" "$prev" "$VERSION" >> notes.md
+          fi
+          cat notes.md
+
+      - name: Create or update release
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release edit "v$VERSION" --title "v$VERSION" --notes-file notes.md
+          else
+            gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file notes.md --latest
+          fi
