@@ -2,26 +2,37 @@ use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
 
-use crate::core::{domain::MonitorError, ports::MonitorRepository};
+use crate::core::ports::{MonitorRepository, OutboxRepository};
 
-/// Background worker that prunes old `check_ins` rows to bound `SQLite` growth.
+/// Background worker that bounds `SQLite` growth by pruning old `check_ins`
+/// and terminal (`sent`/`failed`) `notification_outbox` rows.
 ///
-/// Mirrors `MonitorChecker`: owns its own timer + shutdown token so the prune
-/// cadence stays decoupled from missed-monitor detection. The cutoff is a
-/// business decision computed here (`now - retention_days`); the repository only
-/// executes the delete with the supplied timestamp.
-pub struct RetentionChecker<R: MonitorRepository> {
-    repo: R,
+/// Pending and sending outbox rows are never pruned: they represent in-flight
+/// or undelivered alerts. Cutoffs are business decisions computed here
+/// (`now - N days`); the repositories only execute the deletes. A window of
+/// `0` (or less) disables that prune.
+pub struct RetentionChecker<MR: MonitorRepository, OR: OutboxRepository> {
+    monitor_repo: MR,
+    outbox_repo: OR,
     interval: Duration,
-    retention_days: i64,
+    check_in_retention_days: i64,
+    outbox_retention_days: i64,
 }
 
-impl<R: MonitorRepository> RetentionChecker<R> {
-    pub fn new(repo: R, interval: Duration, retention_days: i64) -> Self {
+impl<MR: MonitorRepository, OR: OutboxRepository> RetentionChecker<MR, OR> {
+    pub fn new(
+        monitor_repo: MR,
+        outbox_repo: OR,
+        interval: Duration,
+        check_in_retention_days: i64,
+        outbox_retention_days: i64,
+    ) -> Self {
         Self {
-            repo,
+            monitor_repo,
+            outbox_repo,
             interval,
-            retention_days,
+            check_in_retention_days,
+            outbox_retention_days,
         }
     }
 
@@ -40,30 +51,21 @@ impl<R: MonitorRepository> RetentionChecker<R> {
     }
 
     pub async fn run_once(&self) {
-        match self.prune().await {
-            Ok(pruned) => {
-                tracing::info!(pruned, "retention prune complete");
-            }
-            Err(e) => {
-                tracing::error!(error = %e, "retention prune failed");
+        if let Some(cutoff) = cutoff(self.check_in_retention_days) {
+            match self.monitor_repo.prune_old_check_ins(cutoff).await {
+                Ok(pruned) => tracing::info!(pruned, "check-in retention prune complete"),
+                Err(e) => tracing::error!(error = %e, "check-in retention prune failed"),
             }
         }
-    }
-
-    async fn prune(&self) -> Result<u64, MonitorError> {
-        if self.retention_days <= 0 {
-            // Retention disabled. Lets operators turn pruning off via config
-            // without a code change.
-            return Ok(0);
+        if let Some(cutoff) = cutoff(self.outbox_retention_days) {
+            match self.outbox_repo.prune_old_outbox_entries(cutoff).await {
+                Ok(pruned) => tracing::info!(pruned, "outbox retention prune complete"),
+                Err(e) => tracing::error!(error = %e, "outbox retention prune failed"),
+            }
         }
-        let cutoff = chrono::Utc::now() - chrono::Duration::days(self.retention_days);
-        self.repo.prune_old_check_ins(cutoff).await
     }
 }
 
-#[cfg(test)]
-mod tests {
-    // Worker logic is exercised at the repo/integration level (see
-    // tests/notification_tests.rs). The worker itself is pure orchestration:
-    // compute cutoff, call repo, log. No domain computation to unit-test here.
+fn cutoff(retention_days: i64) -> Option<chrono::DateTime<chrono::Utc>> {
+    (retention_days > 0).then(|| chrono::Utc::now() - chrono::Duration::days(retention_days))
 }

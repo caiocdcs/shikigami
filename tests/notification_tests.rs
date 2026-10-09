@@ -9,7 +9,6 @@ use shikigami::{
         monitor_checker::MonitorChecker,
         monitor_service::MonitorService,
         notification_service::{DispatcherMap, NotificationService},
-        outbox_retention_checker::OutboxRetentionChecker,
         ports::{
             MonitorRepository, integration_repository::IntegrationRepository,
             notification_dispatcher::OutboxRepository,
@@ -532,8 +531,13 @@ async fn retention_checker_run_once_prunes_using_window() {
     insert_check_in_at(&pool, &mon_id, now - chrono::Duration::days(31)).await;
     insert_check_in_at(&pool, &mon_id, now - chrono::Duration::days(29)).await;
 
-    let repo = SqliteMonitorRepository::new(pool.clone());
-    let checker = RetentionChecker::new(repo, Duration::from_secs(3600), 30);
+    let checker = RetentionChecker::new(
+        SqliteMonitorRepository::new(pool.clone()),
+        SqliteOutboxRepository::new(pool.clone()),
+        Duration::from_secs(3600),
+        30,
+        0,
+    );
     checker.run_once().await;
 
     let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
@@ -548,7 +552,7 @@ async fn retention_checker_run_once_prunes_using_window() {
 //
 // prune_old_outbox_entries deletes terminal rows (sent/failed) older than the
 // cutoff and NEVER touches pending/sending rows (in-flight/undelivered
-// alerts). The OutboxRetentionChecker computes cutoff = now - retention_days.
+// alerts). The RetentionChecker computes cutoff = now - retention_days.
 
 /// Insert an outbox row with the given status and created_at. Parent monitor +
 /// integration must exist to satisfy FKs.
@@ -693,8 +697,13 @@ async fn outbox_retention_checker_run_once_prunes_using_window() {
     )
     .await;
 
-    let repo = SqliteOutboxRepository::new(pool.clone());
-    let checker = OutboxRetentionChecker::new(repo, Duration::from_secs(3600), 30);
+    let checker = RetentionChecker::new(
+        SqliteMonitorRepository::new(pool.clone()),
+        SqliteOutboxRepository::new(pool.clone()),
+        Duration::from_secs(3600),
+        0,
+        30,
+    );
     checker.run_once().await;
 
     let remaining: i64 =

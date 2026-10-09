@@ -30,7 +30,6 @@ use crate::{
         monitor_checker::MonitorChecker,
         monitor_service::MonitorService,
         notification_service::{DispatcherMap, NotificationService},
-        outbox_retention_checker::OutboxRetentionChecker,
         retention_checker::RetentionChecker,
     },
     spi::{
@@ -171,28 +170,17 @@ pub async fn create_app_with_pool(
         checker.run(checker_token).await;
     });
 
-    // Build and spawn the check-in retention worker
-    let retention_repo = SqliteMonitorRepository::new(pool.clone());
+    // Build and spawn the retention worker (check-ins + terminal outbox rows)
     let retention = RetentionChecker::new(
-        retention_repo,
+        SqliteMonitorRepository::new(pool.clone()),
+        SqliteOutboxRepository::new(pool),
         Duration::from_secs(config.retention_interval_seconds),
         config.retention_days,
+        config.outbox_retention_days,
     );
     let retention_token = shutdown_token.child_token();
     tokio::spawn(async move {
         retention.run(retention_token).await;
-    });
-
-    // Build and spawn the outbox retention worker (terminal rows only)
-    let outbox_retention_repo = SqliteOutboxRepository::new(pool);
-    let outbox_retention = OutboxRetentionChecker::new(
-        outbox_retention_repo,
-        Duration::from_secs(config.retention_interval_seconds),
-        config.outbox_retention_days,
-    );
-    let outbox_retention_token = shutdown_token.child_token();
-    tokio::spawn(async move {
-        outbox_retention.run(outbox_retention_token).await;
     });
 
     let router = api::routes::router(state);
