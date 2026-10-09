@@ -84,11 +84,7 @@ async fn health_check() -> StatusCode {
 }
 
 async fn readiness_check(State(state): State<AppState>) -> StatusCode {
-    if sqlx::query("SELECT 1")
-        .execute(&state.pg_pool)
-        .await
-        .is_ok()
-    {
+    if sqlx::query("SELECT 1").execute(&state.pool).await.is_ok() {
         StatusCode::OK
     } else {
         StatusCode::SERVICE_UNAVAILABLE
