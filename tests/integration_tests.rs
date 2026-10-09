@@ -1719,7 +1719,7 @@ async fn status_page_returns_html_with_monitors() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let html = response_body(response).await;
-    assert!(html.contains("<title>Shikigami - Monitor Status</title>"));
+    assert!(html.contains("Shikigami status</title>"));
     assert!(html.contains("My Backup Job"));
     assert!(html.contains("my-backup-job"));
 }

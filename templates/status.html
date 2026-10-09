@@ -1,82 +1,44 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="refresh" content="30">
-    <title>Shikigami - Monitor Status</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: #111; color: #eee; padding: 2rem; }
-        h1 { margin-bottom: 1rem; font-size: 1.5rem; }
-        .summary { display: flex; gap: 1.5rem; margin-bottom: 2rem; flex-wrap: wrap; }
-        .stat { background: #222; padding: 1rem 1.5rem; border-radius: 6px; }
-        .stat-value { font-size: 2rem; font-weight: bold; }
-        .stat-label { color: #888; font-size: 0.875rem; }
-        .healthy { color: #4ade80; }
-        .missed { color: #f87171; }
-        .paused { color: #fbbf24; }
-        table { width: 100%; border-collapse: collapse; background: #1a1a1a; border-radius: 6px; overflow: hidden; }
-        th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid #333; }
-        th { background: #222; font-weight: 600; color: #888; font-size: 0.75rem; text-transform: uppercase; }
-        a { color: #60a5fa; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .status-badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-        .status-active { background: #166534; color: #4ade80; }
-        .status-missed { background: #7f1d1d; color: #f87171; }
-        .status-paused { background: #78350f; color: #fbbf24; }
-        .meta { color: #666; font-size: 0.75rem; }
-        .footer { margin-top: 2rem; color: #666; font-size: 0.75rem; }
-    </style>
+    <title>{% if missed > 0 %}{{ missed }} missed - {% endif %}Shikigami status</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='5' y='1' width='6' height='14' rx='1' fill='{% if tone == "missed" %}%23E5626B{% else if tone == "paused" %}%23D1A85A{% else %}%238FBF8A{% endif %}'/></svg>">
+    {% include "_style.html" %}
 </head>
 <body>
-    <h1>Shikigami</h1>
-    <div class="summary">
-        <div class="stat">
-            <div class="stat-value">{{ total }}</div>
-            <div class="stat-label">Total</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value healthy">{{ healthy }}</div>
-            <div class="stat-label">Active</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value missed">{{ missed }}</div>
-            <div class="stat-label">Missed</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value paused">{{ paused }}</div>
-            <div class="stat-label">Paused</div>
-        </div>
-    </div>
+<main>
+    <header class="masthead">
+        <a class="wordmark" href="/status">Shikigami</a>
+        <time datetime="{{ updated_absolute }}">Updated {{ updated_at }}, refreshes every 30s</time>
+    </header>
+
+    <h1 class="verdict tone-{{ tone }}">{{ verdict }}</h1>
     {% if monitors.is_empty() %}
-    <p>No monitors configured.</p>
+    <p class="lede">Create a monitor with <code>POST /monitors</code>, then have your job call <code>/ping/&lt;slug&gt;</code> when it runs.</p>
     {% else %}
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Schedule</th>
-                <th>Last Ping</th>
-                <th>Next Expected</th>
-                <th>Integrations</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for m in monitors %}
-            <tr>
-                <td><a href="/status/{{ m.slug }}">{{ m.name }}</a></td>
-                <td><span class="status-badge status-{{ m.status }}">{{ m.status }}</span></td>
-                <td class="meta">{{ m.schedule_display }}</td>
-                <td class="meta"{% if let Some(abs) = m.last_ping_absolute %} title="{{ abs }}"{% endif %}>{{ m.last_ping_display }}</td>
-                <td class="meta"{% if let Some(abs) = m.next_expected_absolute %} title="{{ abs }}"{% endif %}>{{ m.next_expected_display }}</td>
-                <td class="meta">{{ m.integrations }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <p class="lede">{{ breakdown }}</p>
+
+    <ul class="monitors">
+        {% for m in monitors %}
+        <li class="row status-{{ m.status }}">
+            <a class="row-link" href="/status/{{ m.slug }}">
+                <span class="row-main">
+                    <span class="name">{{ m.name }}</span>
+                    <span class="schedule">{% if let Some(expr) = m.cron_expr %}<code>{{ expr }}</code> {% endif %}{{ m.schedule_label }}</span>
+                </span>
+                <span class="state">{{ m.status_label }}</span>
+                <span class="times">
+                    {% if let Some(abs) = m.last_ping_absolute %}<span title="{{ abs }}">Last seen {{ m.last_ping_display }}</span>{% else %}<span>No check-ins yet</span>{% endif %}
+                    {% if m.status != "paused" %}{% if let Some(abs) = m.next_expected_absolute %}<span title="{{ abs }}">Due {{ m.next_expected_display }}</span>{% endif %}{% endif %}
+                </span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
     {% endif %}
-    <div class="footer">Updated: {{ updated_at }} · refreshes every 30s</div>
+</main>
 </body>
 </html>
