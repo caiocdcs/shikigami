@@ -4,7 +4,7 @@ version = "0.8.1"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1", features = [ "rt-multi-thread", "time", "macros", "test-util", "signal", "net" ] }
+tokio = { version = "1", features = [ "rt-multi-thread", "time", "macros", "signal", "net" ] }
 serde = "1"
 anyhow = "1"
 serde_json = "1"
@@ -23,8 +23,6 @@ axum-validated-extractors = "0.2.0"
 thiserror = "2"
 tower-http = { version = "0.6", features = [ "trace", "request-id", "util", "propagate-header", "timeout", "limit", "compression-br" ] }
 tower = { version = "0.5", features = ["util"] }
-http-body-util = "0.1"
-http = "1"
 croner = "3"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 tokio-util = { version = "0.7", features = ["rt"] }
