@@ -845,3 +845,24 @@ async fn changing_schedule_recomputes_deadline() {
     assert!(next > chrono::Utc::now() + chrono::Duration::minutes(59));
 }
 
+#[tokio::test]
+async fn undecodable_outbox_row_is_marked_failed() {
+    let pool = pool_with_migrations().await;
+    let (entry_id, _, _) = insert_outbox(&pool, "pending").await;
+    sqlx::query("UPDATE notification_outbox SET message = 'not json' WHERE id = ?")
+        .bind(&entry_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let repo = SqliteOutboxRepository::new(pool.clone());
+
+    let entries = repo.fetch_pending(10).await.unwrap();
+
+    assert!(entries.is_empty());
+    let status: String = sqlx::query_scalar("SELECT status FROM notification_outbox WHERE id = ?")
+        .bind(&entry_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(status, "failed", "no longer occupies the pending batch");
+}

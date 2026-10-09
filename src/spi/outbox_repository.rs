@@ -38,29 +38,30 @@ impl OutboxRepository for SqliteOutboxRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .filter_map(|r| {
-                let notification = match serde_json::from_str::<NotificationContent>(&r.message) {
-                    Ok(n) => n,
-                    Err(e) => {
-                        tracing::warn!(
-                            entry_id = %r.id,
-                            error = %e,
-                            "failed to deserialize notification content, skipping"
-                        );
-                        return None;
-                    }
-                };
-                Some(OutboxEntry {
+        let mut entries = Vec::with_capacity(rows.len());
+        for r in rows {
+            match serde_json::from_str::<NotificationContent>(&r.message) {
+                Ok(notification) => entries.push(OutboxEntry {
                     id: r.id,
                     monitor_id: r.monitor_id,
                     integration_id: r.integration_id,
                     notification,
                     retry_count: r.retry_count,
-                })
-            })
-            .collect())
+                }),
+                Err(e) => {
+                    // An undecodable row can never be delivered. Leaving it
+                    // pending would keep it in every batch and, with enough of
+                    // them, starve the LIMIT for deliverable rows.
+                    tracing::warn!(
+                        entry_id = %r.id,
+                        error = %e,
+                        "failed to deserialize notification content, marking failed"
+                    );
+                    self.mark_failed(&r.id).await?;
+                }
+            }
+        }
+        Ok(entries)
     }
 
     async fn claim_sending(&self, id: &str) -> Result<(), sqlx::Error> {
