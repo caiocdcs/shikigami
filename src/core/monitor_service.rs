@@ -192,21 +192,25 @@ impl<R: MonitorRepository> MonitorService<R> {
         let now = chrono::Utc::now();
         let next_expected = monitor.schedule_type.next_occurrence_after(&now)?;
 
-        // Business rule: failure marks monitor as missed; success/ping marks active
+        // Business rule: failure marks monitor as missed; success/ping marks
+        // active. A paused monitor stays paused and stays silent: the check-in
+        // is still recorded, but no status change and no notification.
+        let paused = monitor.status == MonitorStatus::Paused;
         let new_status = match outcome {
+            _ if paused => MonitorStatus::Paused,
             CheckInOutcome::Success => MonitorStatus::Active,
             CheckInOutcome::Failure => MonitorStatus::Missed,
         };
 
-        let notification = if matches!(outcome, CheckInOutcome::Failure) {
-            Some(NotificationContent::for_failure(
+        let notification = match outcome {
+            _ if paused => None,
+            CheckInOutcome::Failure => Some(NotificationContent::for_failure(
                 &monitor.name,
                 &monitor.slug,
                 monitor.last_pinged_at,
                 message.as_deref(),
-            ))
-        } else {
-            None
+            )),
+            CheckInOutcome::Success => None,
         };
 
         self.repo

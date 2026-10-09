@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use shikigami::{
     core::{
-        domain::integration::{IntegrationChannel, IntegrationConfig, NewIntegration, NtfyConfig},
+        domain::{
+            CheckInOutcome,
+            integration::{IntegrationChannel, IntegrationConfig, NewIntegration, NtfyConfig},
+        },
         monitor_checker::MonitorChecker,
         monitor_service::MonitorService,
         notification_service::{DispatcherMap, NotificationService},
@@ -726,6 +729,53 @@ async fn monitor_status(pool: &SqlitePool, mon_id: &str) -> String {
         .fetch_one(pool)
         .await
         .unwrap()
+}
+
+#[tokio::test]
+async fn ping_on_paused_monitor_keeps_it_paused() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    set_status_with_stale_deadline(&pool, &mon_id, "paused").await;
+    let service = MonitorService::new(SqliteMonitorRepository::new(pool.clone()));
+    let id = service.resolve_monitor_id(&mon_id).await.unwrap();
+
+    service.ping(id, None).await.unwrap();
+
+    assert_eq!(monitor_status(&pool, &mon_id).await, "paused");
+    let check_ins: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE monitor_id = ?")
+        .bind(&mon_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(check_ins, 1, "check-in still recorded while paused");
+}
+
+#[tokio::test]
+async fn failure_on_paused_monitor_sends_no_notification() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    let int_id = insert_integration(&pool).await;
+    sqlx::query("INSERT INTO monitor_integrations (monitor_id, integration_id) VALUES (?, ?)")
+        .bind(&mon_id)
+        .bind(&int_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    set_status_with_stale_deadline(&pool, &mon_id, "paused").await;
+    let service = MonitorService::new(SqliteMonitorRepository::new(pool.clone()));
+    let id = service.resolve_monitor_id(&mon_id).await.unwrap();
+
+    service
+        .check_in(id, CheckInOutcome::Failure, Some("boom".to_string()))
+        .await
+        .unwrap();
+
+    assert_eq!(monitor_status(&pool, &mon_id).await, "paused");
+    let outbox: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM notification_outbox")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(outbox, 0, "paused monitors stay silent");
 }
 
 #[tokio::test]
