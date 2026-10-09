@@ -424,30 +424,6 @@ impl MonitorRepository for SqliteMonitorRepository {
             .collect()
     }
 
-    async fn ping(
-        &self,
-        monitor_id: MonitorId,
-        timestamp: chrono::DateTime<chrono::Utc>,
-        next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
-    ) -> Result<(), MonitorError> {
-        let monitor_id_str = monitor_id.as_uuid().to_string();
-        let now_str = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-        let next_expected_str =
-            next_expected_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string());
-
-        sqlx::query!(
-            r#"UPDATE monitors SET last_pinged_at = ?, next_expected_at = ?, status = 'active' WHERE id = ?"#,
-            now_str,
-            next_expected_str,
-            monitor_id_str
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(MonitorError::map_sqlx_error)?;
-
-        Ok(())
-    }
-
     async fn check_in(
         &self,
         monitor_id: MonitorId,

@@ -52,12 +52,6 @@ pub trait MonitorRepository: Send + Sync + 'static {
     fn find_missed_monitors(
         &self,
     ) -> impl Future<Output = Result<Vec<MonitorId>, MonitorError>> + Send;
-    fn ping(
-        &self,
-        monitor_id: MonitorId,
-        timestamp: chrono::DateTime<chrono::Utc>,
-        next_expected_at: Option<chrono::DateTime<chrono::Utc>>,
-    ) -> impl Future<Output = Result<(), MonitorError>> + Send;
     fn check_in(
         &self,
         monitor_id: MonitorId,
