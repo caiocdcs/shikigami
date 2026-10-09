@@ -24,44 +24,18 @@ alerts with retry. See `ARCHITECTURE.md` for internals.
 
 ## Install
 
-One-line install (Linux x86_64/aarch64):
-
-```sh
-curl -sSfL https://github.com/caiocdcs/shikigami/releases/latest/download/install.sh | sh
-```
-
-The script downloads the release tarball and verifies its sha256sum before
-installing. Since you are piping a remote script to a shell, you may prefer to
-inspect it first:
-
-```sh
-curl -sSfL https://github.com/caiocdcs/shikigami/releases/latest/download/install.sh -o install.sh
-less install.sh && sh install.sh
-```
-
-With Nix:
+With Nix (Linux and macOS):
 
 ```sh
 nix run github:caiocdcs/shikigami
 ```
 
-| `HOST` | `0.0.0.0` | Listen address (e.g. `127.0.0.1` behind a reverse proxy) |
 From source:
 
 ```sh
 cargo build --release
 ./target/release/shikigami
 ```
-
-Docker:
-
-```sh
-mkdir -p data
-docker run -d --name shikigami -p 3000:3000 -v "$PWD/data:/var/lib/shikigami" \
-  --restart unless-stopped ghcr.io/caiocdcs/shikigami:latest
-```
-
-Or use the example Compose file at [`examples/docker-compose.yml`](examples/docker-compose.yml).
 
 ## Configuration
 
@@ -71,6 +45,7 @@ Environment variables (or a `.env` file, `__` as nesting separator):
 |----------|---------|-------------|
 | `DATABASE_URL` | required | SQLite connection string (e.g. `sqlite:shikigami.db?mode=rwc`) |
 | `LOG_LEVEL` | `info` | `tracing` filter (e.g. `info,sqlx=warn`) |
+| `HOST` | `0.0.0.0` | Listen address (e.g. `127.0.0.1` behind a reverse proxy) |
 | `PORT` | `3000` | Listen port |
 | `API_KEY` | unset | Bearer token required for CRUD and `/health/report`. Unset = open + startup warning. |
 | `UI_ENABLED` | `false` | Serve public status page at `/status` (no auth). |
@@ -92,8 +67,8 @@ LOG_LEVEL=info
 > **Security note:** The SQLite database contains notification credentials
 > (SMTP passwords, gotify tokens) in plaintext. Treat the database file with
 > the same care as `.env` -- restrict filesystem access to the shikigami user
-> only. The Docker image runs as non-root (UID 1000) and the default volume
-> path (`/var/lib/shikigami`) follows this practice.
+> only. The NixOS module and systemd unit run under a dedicated `DynamicUser`
+> with the database in `/var/lib/shikigami`, which follows this practice.
 
 ## Run
 
@@ -105,13 +80,11 @@ Migrations run automatically on first start. The binary is self-contained.
 
 ## Deploy
 
-Pick a deployment target; all three keep the database at `/var/lib/shikigami`.
-The binary is self-contained (SQLite is bundled), so no system `libsqlite3` is
-required on any deployment.
+Both deployment targets keep the database at `/var/lib/shikigami`. The binary
+is self-contained (SQLite is bundled), so no system `libsqlite3` is required.
 
-- [Docker / Docker Compose](docs/deployment/docker.md) - multi-arch image on `ghcr.io`, single container.
-- [systemd](docs/deployment/systemd.md) - bare-metal/VM with the prebuilt binary.
 - [NixOS](docs/deployment/nixos.md) - flake module (`services.shikigami`), builds from source.
+- [systemd](docs/deployment/systemd.md) - any other Linux host, binary built with Nix or cargo.
 
 ### Database file & backups
 
@@ -213,8 +186,6 @@ backup.sh 2>&1 | curl -X POST --data-binary @- http://localhost:3000/failure/my-
 
 ## Example: nightly backup monitor
 
-When the job checks in successfully again, a recovery notification is sent.
-Paused monitors still record check-ins but never change status or notify.
 ```bash
 # 1. Create the monitor (daily at 03:00, with 1-hour grace)
 MON_ID=$(curl -s -X POST http://localhost:3000/monitors \
@@ -242,6 +213,8 @@ curl -X POST http://localhost:3000/monitors/$MON_ID/integrations \
 
 If the backup script fails to run or fails to ping, after `grace_seconds`
 the background checker detects the miss and a notification is dispatched.
+When the job checks in successfully again, a recovery notification is sent.
+Paused monitors still record check-ins but never change status or notify.
 
 ## Development
 

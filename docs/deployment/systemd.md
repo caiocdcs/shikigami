@@ -1,26 +1,24 @@
 # Deploy with systemd
 
-For a bare-metal or VM Linux host, deploy the prebuilt binary with a systemd
-unit. The binary is self-contained (SQLite is bundled), so the host needs only
-glibc and the binary itself.
+For a non-NixOS Linux host, build the binary and run it with a systemd unit.
+The binary is self-contained (SQLite is bundled), so the host needs only glibc
+and the binary itself.
 
-## 1. Install the binary
+## 1. Build and install the binary
 
-One-line install (Linux x86_64/aarch64), which verifies the sha256sum:
-
-```sh
-curl -sSfL https://github.com/caiocdcs/shikigami/releases/latest/download/install.sh | sh
-```
-
-If you prefer to inspect the script first (recommended), download it:
+With Nix:
 
 ```sh
-curl -sSfL https://github.com/caiocdcs/shikigami/releases/latest/download/install.sh -o install.sh
-less install.sh
-sh install.sh
+nix build github:caiocdcs/shikigami
+sudo install -m 0755 result/bin/shikigami /usr/local/bin/shikigami
 ```
 
-This installs the binary to `/usr/local/bin/shikigami`.
+Or from source with a Rust toolchain:
+
+```sh
+cargo build --release
+sudo install -m 0755 target/release/shikigami /usr/local/bin/shikigami
+```
 
 ## 2. Install the unit
 
@@ -39,7 +37,7 @@ The unit uses `DynamicUser=yes` + `StateDirectory=shikigami`, so systemd:
 - creates `/var/lib/shikigami` and chowns it to that user,
 - tears down the user on stop.
 
-This matches the NixOS and Docker deployments, which all use
+This matches the NixOS deployment, which also uses
 `/var/lib/shikigami` as the data path.
 
 ## 3. Configure
