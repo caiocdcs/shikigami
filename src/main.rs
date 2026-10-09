@@ -17,8 +17,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = create_app(config.clone(), shutdown_token.clone()).await?;
 
-    let addr = format!("0.0.0.0:{}", config.port);
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    let listener = tokio::net::TcpListener::bind((config.host.as_str(), config.port)).await?;
     tracing::info!("listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app)

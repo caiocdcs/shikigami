@@ -64,11 +64,11 @@ impl AppState {
 }
 
 pub async fn create_pool(config: &Config) -> anyhow::Result<SqlitePool> {
+    // SQLite serializes writes anyway; a handful of connections is plenty for
+    // concurrent readers. Acquire timeout matches busy_timeout below.
     let pool = SqlitePoolOptions::new()
-        .max_connections(config.pool_max_connections)
-        .min_connections(config.pool_min_connections)
-        .acquire_timeout(Duration::from_secs(config.pool_acquire_timeout_seconds))
-        .idle_timeout(Duration::from_secs(config.pool_idle_timeout_seconds))
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(5))
         .after_connect(|conn, _meta| {
             Box::pin(async {
                 // WAL: readers no longer block writers (and vice versa). Persistent

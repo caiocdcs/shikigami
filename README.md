@@ -45,6 +45,7 @@ With Nix:
 nix run github:caiocdcs/shikigami
 ```
 
+| `HOST` | `0.0.0.0` | Listen address (e.g. `127.0.0.1` behind a reverse proxy) |
 From source:
 
 ```sh
@@ -76,10 +77,6 @@ Environment variables (or a `.env` file, `__` as nesting separator):
 | `RETENTION_DAYS` | `30` | Check-ins older than this are pruned. `0` disables retention. |
 | `RETENTION_INTERVAL_SECONDS` | `3600` | How often the retention worker runs. |
 | `OUTBOX_RETENTION_DAYS` | `30` | Terminal outbox rows (sent/failed) older than this are pruned. `0` disables. |
-| `POOL_MAX_CONNECTIONS` | `10` | SQLite pool max connections. |
-| `POOL_MIN_CONNECTIONS` | `2` | SQLite pool min connections. |
-| `POOL_ACQUIRE_TIMEOUT_SECONDS` | `3` | Pool acquire timeout. |
-| `POOL_IDLE_TIMEOUT_SECONDS` | `600` | Pool idle timeout. |
 | `NOTIFICATION_INTERVAL_SECONDS` | `30` | How often the notification worker drains the outbox. |
 | `NOTIFICATION_MAX_RETRIES` | `3` | Max delivery attempts before an outbox entry is marked failed. |
 | `CHECKER_INTERVAL_SECONDS` | `60` | How often the missed-monitor checker runs. |

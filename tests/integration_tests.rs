@@ -1506,7 +1506,10 @@ async fn test_app_with_key(key: &str) -> axum::Router {
     let pool = SqlitePool::connect(":memory:")
         .await
         .expect("failed to create test pool");
-    let config = Config::for_test_with_key("sqlite::memory:", key);
+    let config = Config {
+        api_key: Some(key.to_string().into()),
+        ..Config::for_test("sqlite::memory:")
+    };
     create_app_with_pool(pool, config, tokio_util::sync::CancellationToken::new())
         .await
         .expect("failed to create test app")
@@ -1657,7 +1660,10 @@ async fn test_app_with_ui() -> axum::Router {
     let pool = SqlitePool::connect(":memory:")
         .await
         .expect("failed to create test pool");
-    let config = Config::for_test_with_ui("sqlite::memory:", true);
+    let config = Config {
+        ui_enabled: true,
+        ..Config::for_test("sqlite::memory:")
+    };
     create_app_with_pool(pool, config, tokio_util::sync::CancellationToken::new())
         .await
         .expect("failed to create test app")
