@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-09
+
+### Security
+
+- Update `rustls` to 0.23.45 (RUSTSEC-2026-0285, TLS 1.3 handshake messages
+  accepted across encryption levels).
+- Update `anyhow` to 1.0.104 and `event-listener` to 5.4.2 (unsoundness
+  advisories RUSTSEC-2026-0190 and RUSTSEC-2026-0221), and replace the yanked
+  `spin` 0.9.8 with 0.9.9.
+
+### Added
+
+- Tag-triggered release workflow: checks the tag against `Cargo.toml` and this
+  changelog, builds the flake with Nix, and publishes the GitHub release.
+
 ## [0.9.0] - 2026-10-09
 
 ### Security
@@ -239,7 +254,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Notification dispatch (ntfy, gotify, slack)
 - SQLite with foreign key enforcement
 
-[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/caiocdcs/shikigami/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/caiocdcs/shikigami/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/caiocdcs/shikigami/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/caiocdcs/shikigami/compare/v0.7.0...v0.8.0
