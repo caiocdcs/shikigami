@@ -46,6 +46,24 @@ impl NotificationContent {
             last_seen_at,
         }
     }
+
+    /// A monitor that was missed has checked in successfully again.
+    pub fn for_recovery(
+        monitor_name: &str,
+        monitor_slug: &str,
+        recovered_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            title: format!("{monitor_name} recovered"),
+            body: format!(
+                "Monitor {monitor_name} ({monitor_slug}) is checking in again. Recovered at: {}",
+                recovered_at.to_rfc3339()
+            ),
+            monitor_name: monitor_name.to_string(),
+            monitor_slug: monitor_slug.to_string(),
+            last_seen_at: Some(recovered_at),
+        }
+    }
 }
 
 /// Truncate `s` to at most `max_chars` characters without splitting a Unicode
@@ -119,6 +137,17 @@ mod tests {
         // 2 ASCII + 254 emojis = 256 chars, no panic, valid UTF-8.
         assert_eq!(reason.chars().count(), NOTIFICATION_MESSAGE_EXCERPT);
         assert!(reason.is_char_boundary(reason.len()));
+    }
+
+    #[test]
+    fn for_recovery_names_monitor_in_title_and_body() {
+        let dt = chrono::DateTime::parse_from_rfc3339("2026-01-15T10:30:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let content = NotificationContent::for_recovery("backup", "backup-job", dt);
+        assert_eq!(content.title, "backup recovered");
+        assert!(content.body.contains("backup (backup-job)"));
+        assert!(content.body.contains("2026-01-15T10:30:00+00:00"));
     }
 
     #[test]

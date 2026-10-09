@@ -213,6 +213,8 @@ backup.sh 2>&1 | curl -X POST --data-binary @- http://localhost:3000/failure/my-
 
 ## Example: nightly backup monitor
 
+When the job checks in successfully again, a recovery notification is sent.
+Paused monitors still record check-ins but never change status or notify.
 ```bash
 # 1. Create the monitor (daily at 03:00, with 1-hour grace)
 MON_ID=$(curl -s -X POST http://localhost:3000/monitors \

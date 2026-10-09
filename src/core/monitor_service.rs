@@ -210,6 +210,9 @@ impl<R: MonitorRepository> MonitorService<R> {
                 monitor.last_pinged_at,
                 message.as_deref(),
             )),
+            CheckInOutcome::Success if monitor.status == MonitorStatus::Missed => Some(
+                NotificationContent::for_recovery(&monitor.name, &monitor.slug, now),
+            ),
             CheckInOutcome::Success => None,
         };
 

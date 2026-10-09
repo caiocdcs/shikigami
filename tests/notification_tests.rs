@@ -875,3 +875,62 @@ async fn undecodable_outbox_row_is_marked_failed() {
         .unwrap();
     assert_eq!(status, "failed", "no longer occupies the pending batch");
 }
+
+// ---- Recovery notifications ----
+
+async fn link_new_integration(pool: &SqlitePool, mon_id: &str) {
+    let int_id = insert_integration(pool).await;
+    sqlx::query("INSERT INTO monitor_integrations (monitor_id, integration_id) VALUES (?, ?)")
+        .bind(mon_id)
+        .bind(&int_id)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn outbox_titles(pool: &SqlitePool) -> Vec<String> {
+    let messages: Vec<String> = sqlx::query_scalar("SELECT message FROM notification_outbox")
+        .fetch_all(pool)
+        .await
+        .unwrap();
+    messages
+        .iter()
+        .map(|m| {
+            serde_json::from_str::<serde_json::Value>(m).unwrap()["title"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn success_after_missed_queues_recovery_notification() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    link_new_integration(&pool, &mon_id).await;
+    set_status_with_stale_deadline(&pool, &mon_id, "missed").await;
+    let service = MonitorService::new(SqliteMonitorRepository::new(pool.clone()));
+    let id = service.resolve_monitor_id(&mon_id).await.unwrap();
+
+    service.ping(id, None).await.unwrap();
+
+    assert_eq!(monitor_status(&pool, &mon_id).await, "active");
+    assert_eq!(
+        outbox_titles(&pool).await,
+        vec!["test recovered".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn success_on_active_monitor_queues_nothing() {
+    let pool = pool_with_migrations().await;
+    let mon_id = insert_monitor(&pool).await;
+    link_new_integration(&pool, &mon_id).await;
+    let service = MonitorService::new(SqliteMonitorRepository::new(pool.clone()));
+    let id = service.resolve_monitor_id(&mon_id).await.unwrap();
+
+    service.ping(id, None).await.unwrap();
+
+    assert!(outbox_titles(&pool).await.is_empty());
+}

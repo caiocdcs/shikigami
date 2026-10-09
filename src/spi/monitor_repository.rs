@@ -473,7 +473,7 @@ impl MonitorRepository for SqliteMonitorRepository {
         .await
         .map_err(MonitorError::map_sqlx_error)?;
 
-        // On failure, write to notification_outbox for each linked integration
+        // Queue the notification (failure or recovery) for each linked integration
         if let Some(notification) = notification {
             let integration_ids: Vec<String> = sqlx::query_scalar!(
                 r#"SELECT integration_id FROM monitor_integrations WHERE monitor_id = ?"#,
