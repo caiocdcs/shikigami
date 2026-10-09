@@ -68,7 +68,7 @@
             inherit (craneLib.crateNameFromCargoToml { cargoToml = ./Cargo.toml; }) pname version;
             meta = {
               mainProgram = "shikigami";
-              platforms = lib.platforms.linux;
+              platforms = lib.platforms.unix;
               description = "Self-hosted heartbeat and cron monitor";
               license = lib.licenses.mit;
             };
