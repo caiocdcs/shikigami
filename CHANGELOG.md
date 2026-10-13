@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-13
+
+### Added
+
+- Theme toggle on the status pages: cycles System, Light and Dark, remembered
+  per browser. System follows the OS setting as before.
+
 ## [0.9.1] - 2026-10-09
 
 ### Security
@@ -254,7 +261,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com), and this 
 - Notification dispatch (ntfy, gotify, slack)
 - SQLite with foreign key enforcement
 
-[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/caiocdcs/shikigami/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/caiocdcs/shikigami/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/caiocdcs/shikigami/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/caiocdcs/shikigami/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/caiocdcs/shikigami/compare/v0.8.0...v0.8.1
