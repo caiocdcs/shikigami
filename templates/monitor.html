@@ -7,10 +7,14 @@
     <title>{{ name }} - Shikigami</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='5' y='1' width='6' height='14' rx='1' fill='{% if status == "missed" %}%23E5626B{% else if status == "paused" %}%23D1A85A{% else %}%238FBF8A{% endif %}'/></svg>">
     {% include "_style.html" %}
+    {% include "_theme.html" %}
 </head>
 <body>
 <main class="status-{{ status }}">
-    <a class="back" href="/status">All monitors</a>
+    <header class="masthead masthead-detail">
+        <a class="back" href="/status">All monitors</a>
+        <button type="button" class="theme-toggle">Theme: System</button>
+    </header>
 
     <h1 class="verdict tone-{% if status == "active" %}ok{% else %}{{ status }}{% endif %}">{{ name }}</h1>
     <p class="lede"><strong class="state">{{ status_label }}.</strong> {{ summary }}</p>

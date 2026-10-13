@@ -1722,6 +1722,7 @@ async fn status_page_returns_html_with_monitors() {
     assert!(html.contains("Shikigami status</title>"));
     assert!(html.contains("My Backup Job"));
     assert!(html.contains("my-backup-job"));
+    assert!(html.contains("class=\"theme-toggle\""));
 }
 
 #[tokio::test]
@@ -1797,6 +1798,7 @@ async fn monitor_detail_page_shows_checkins() {
     assert!(html.contains("<title>Health Check - Shikigami</title>"));
     assert!(html.contains("Health Check"));
     assert!(html.contains("success"));
+    assert!(html.contains("class=\"theme-toggle\""));
 }
 
 #[tokio::test]

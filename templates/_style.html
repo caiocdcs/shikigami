@@ -14,8 +14,21 @@
         --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
         color-scheme: dark;
     }
+    /* Light palette: chosen explicitly via the toggle, or by the OS unless dark was chosen. */
+    :root[data-theme="light"] {
+        --bg: #eef1f5;
+        --raised: #e2e7ee;
+        --rule: #cdd5e0;
+        --ink: #162033;
+        --muted: #56627a;
+        --ok: #3f7a3b;
+        --missed: #b8323e;
+        --paused: #8c6418;
+        --link: #2b4f8a;
+        color-scheme: light;
+    }
     @media (prefers-color-scheme: light) {
-        :root {
+        :root:not([data-theme="dark"]) {
             --bg: #eef1f5;
             --raised: #e2e7ee;
             --rule: #cdd5e0;
@@ -50,6 +63,13 @@
         font-size: 0.875rem; color: var(--muted);
     }
     .wordmark { font: 600 1rem var(--serif); color: var(--ink); letter-spacing: 0.02em; }
+    .masthead-end { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 1rem; }
+    .theme-toggle {
+        font: inherit; color: var(--link);
+        background: none; border: 0; padding: 0; cursor: pointer;
+    }
+    .theme-toggle:hover { text-decoration: underline; }
+    .theme-toggle:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 2px; }
 
     /* The one loud element: a sentence that answers "is anything broken?" */
     .verdict {
@@ -93,7 +113,8 @@
     }
 
     /* Detail page */
-    .back { display: inline-block; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    .back { display: inline-block; }
+    .masthead-detail { padding-bottom: 1.5rem; }
     .facts {
         display: grid; grid-template-columns: max-content minmax(0, 1fr);
         gap: 0.5rem 2rem; margin: 2rem 0 3rem 1.375rem;

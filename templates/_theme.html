@@ -1,0 +1,40 @@
+<script>
+    // Runs before first paint so the stored theme applies without a flash on each refresh.
+    (function () {
+        var KEY = "shikigami-theme";
+        var NEXT = { system: "light", light: "dark", dark: "system" };
+        var LABEL = { system: "System", light: "Light", dark: "Dark" };
+        var root = document.documentElement;
+
+        function stored() {
+            try {
+                var v = localStorage.getItem(KEY);
+                return v === "light" || v === "dark" ? v : "system";
+            } catch (e) {
+                return "system";
+            }
+        }
+
+        function apply(mode) {
+            if (mode === "system") delete root.dataset.theme;
+            else root.dataset.theme = mode;
+            var buttons = document.querySelectorAll(".theme-toggle");
+            for (var i = 0; i < buttons.length; i++) {
+                buttons[i].textContent = "Theme: " + LABEL[mode];
+            }
+        }
+
+        var current = stored();
+        apply(current);
+        document.addEventListener("DOMContentLoaded", function () { apply(current); });
+        document.addEventListener("click", function (e) {
+            if (!e.target.closest(".theme-toggle")) return;
+            current = NEXT[current];
+            try {
+                if (current === "system") localStorage.removeItem(KEY);
+                else localStorage.setItem(KEY, current);
+            } catch (err) {}
+            apply(current);
+        });
+    })();
+</script>
