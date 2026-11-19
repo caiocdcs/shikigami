@@ -6,27 +6,57 @@
       {
         "name": "id!",
         "ordinal": 0,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "check_ins",
+            "name": "id"
+          }
+        }
       },
       {
         "name": "monitor_id!",
         "ordinal": 1,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "check_ins",
+            "name": "monitor_id"
+          }
+        }
       },
       {
         "name": "checked_in_at!",
         "ordinal": 2,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "check_ins",
+            "name": "checked_in_at"
+          }
+        }
       },
       {
         "name": "outcome!",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "check_ins",
+            "name": "outcome"
+          }
+        }
       },
       {
         "name": "message",
         "ordinal": 4,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "check_ins",
+            "name": "message"
+          }
+        }
       }
     ],
     "parameters": {

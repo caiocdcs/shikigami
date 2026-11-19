@@ -6,32 +6,68 @@
       {
         "name": "id!",
         "ordinal": 0,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "id"
+          }
+        }
       },
       {
         "name": "name!",
         "ordinal": 1,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "name"
+          }
+        }
       },
       {
         "name": "channel_type!",
         "ordinal": 2,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "channel_type"
+          }
+        }
       },
       {
         "name": "config_json!",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "config_json"
+          }
+        }
       },
       {
         "name": "status!",
         "ordinal": 4,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "status"
+          }
+        }
       },
       {
         "name": "created_at!",
         "ordinal": 5,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "created_at"
+          }
+        }
       }
     ],
     "parameters": {

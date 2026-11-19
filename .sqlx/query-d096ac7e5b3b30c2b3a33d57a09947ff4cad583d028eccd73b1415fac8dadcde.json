@@ -6,72 +6,146 @@
       {
         "name": "id!",
         "ordinal": 0,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "id"
+          }
+        }
       },
       {
         "name": "name!",
         "ordinal": 1,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "name"
+          }
+        }
       },
       {
         "name": "slug!",
         "ordinal": 2,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "slug"
+          }
+        }
       },
       {
         "name": "status!",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "status"
+          }
+        }
       },
       {
         "name": "schedule_type!",
         "ordinal": 4,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "schedule_type"
+          }
+        }
       },
       {
         "name": "cron_expr",
         "ordinal": 5,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "cron_expr"
+          }
+        }
       },
       {
         "name": "interval_seconds",
         "ordinal": 6,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "interval_seconds"
+          }
+        }
       },
       {
         "name": "grace_seconds!",
         "ordinal": 7,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "grace_seconds"
+          }
+        }
       },
       {
         "name": "last_pinged_at",
         "ordinal": 8,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "last_pinged_at"
+          }
+        }
       },
       {
         "name": "next_expected_at",
         "ordinal": 9,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "next_expected_at"
+          }
+        }
       },
       {
         "name": "created_at!",
         "ordinal": 10,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "created_at"
+          }
+        }
       },
       {
         "name": "timezone",
         "ordinal": 11,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitors",
+            "name": "timezone"
+          }
+        }
       },
       {
         "name": "integrations!",
         "ordinal": 12,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": "Expression"
       },
       {
         "name": "outbox_pending!",
         "ordinal": 13,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": "Expression"
       }
     ],
     "parameters": {

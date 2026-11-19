@@ -6,7 +6,13 @@
       {
         "name": "integration_id",
         "ordinal": 0,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "monitor_integrations",
+            "name": "integration_id"
+          }
+        }
       }
     ],
     "parameters": {
