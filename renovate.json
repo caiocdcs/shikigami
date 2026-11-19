@@ -1,0 +1,54 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "cargo",
+    "nix",
+    "github-actions"
+  ],
+  "nix": {
+    "enabled": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
+  "gitAuthor": "Caio Silva <caio@cdcs.dev>",
+  "labels": [
+    "renovate"
+  ],
+  "prHourlyLimit": 0,
+  "prConcurrentLimit": 0,
+  "dependencyDashboardApproval": true,
+  "rebaseWhen": "conflicted",
+  "packageRules": [
+    {
+      "description": "Homelab policy: every update waits for approval and review",
+      "matchManagers": [
+        "cargo",
+        "nix",
+        "github-actions"
+      ],
+      "automerge": false
+    },
+    {
+      "groupName": "cargo",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ]
+    },
+    {
+      "groupName": "github actions",
+      "matchManagers": [
+        "github-actions"
+      ]
+    }
+  ]
+}
